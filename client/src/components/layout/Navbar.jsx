@@ -1,7 +1,7 @@
 import React from 'react';
 import { School, User, Settings, LogOut } from 'lucide-react';
 
-import { useAuth } from '../../store/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 
 const Navbar = () => {
     const { user, logout } = useAuth();

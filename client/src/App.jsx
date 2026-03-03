@@ -7,6 +7,7 @@ import Inquiries from './pages/Inquiries';
 import Admissions from './pages/Admissions';
 import Classes from './pages/Classes';
 import { AuthProvider } from './store/AuthContext';
+import { DialogProvider } from './store/DialogContext';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import Login from './pages/Login';
 
@@ -27,30 +28,32 @@ const DashboardLayout = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
+      <DialogProvider>
+        <Router>
+          <Routes>
+            <Route path="/login" element={<Login />} />
 
-          <Route element={<ProtectedRoute />}>
-            <Route element={<DashboardLayout />}>
-              <Route path="/" element={<MainDashboard />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<DashboardLayout />}>
+                <Route path="/" element={<MainDashboard />} />
 
-              <Route element={<ProtectedRoute roles={['admin']} />}>
-                <Route path="/admin" element={<AdminDashboard />} />
-              </Route>
+                <Route element={<ProtectedRoute roles={['admin']} />}>
+                  <Route path="/admin" element={<AdminDashboard />} />
+                </Route>
 
-              <Route element={<ProtectedRoute roles={['admin', 'hr', 'front_desk']} />}>
-                <Route path="/inquiries" element={<Inquiries />} />
-              </Route>
+                <Route element={<ProtectedRoute roles={['admin', 'hr', 'front_desk']} />}>
+                  <Route path="/inquiries" element={<Inquiries />} />
+                </Route>
 
-              <Route element={<ProtectedRoute roles={['admin', 'hr']} />}>
-                <Route path="/admissions" element={<Admissions />} />
-                <Route path="/classes" element={<Classes />} />
+                <Route element={<ProtectedRoute roles={['admin', 'hr']} />}>
+                  <Route path="/admissions" element={<Admissions />} />
+                  <Route path="/classes" element={<Classes />} />
+                </Route>
               </Route>
             </Route>
-          </Route>
-        </Routes>
-      </Router>
+          </Routes>
+        </Router>
+      </DialogProvider>
     </AuthProvider>
   );
 }

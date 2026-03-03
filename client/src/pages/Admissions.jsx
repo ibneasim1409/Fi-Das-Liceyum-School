@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
     UserCheck,
@@ -16,12 +16,18 @@ import {
     ArrowRight,
     UserPlus,
     Calendar,
-    AlertTriangle
+    AlertTriangle,
+    Trash2,
+    Camera
 } from 'lucide-react';
-import { useAuth } from '../store/AuthContext';
+
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useDialog } from '../store/DialogContext';
 
 const Admissions = () => {
-    const { user } = useAuth();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const { showAlert, showConfirm } = useDialog();
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
     const [admissions, setAdmissions] = useState([]);
@@ -33,12 +39,10 @@ const Admissions = () => {
 
     // Form editing state
     const [editData, setEditData] = useState({});
+    const [isNewForm, setIsNewForm] = useState(false);
+    const [siblingInfo, setSiblingInfo] = useState({ count: 0, loading: false });
 
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const [admRes, clsRes] = await Promise.all([
@@ -52,9 +56,30 @@ const Admissions = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [API_URL]);
+
+    useEffect(() => {
+        fetchData();
+
+        // Handle incoming state from Inquiries page
+        if (location.state?.startNewAdmission && location.state?.prefillData) {
+            setIsNewForm(true);
+            setEditData({
+                ...location.state.prefillData,
+                parentCNIC: '',
+                studentCNIC: '',
+                address: '',
+                sectionId: '',
+                discount: 0,
+                baseFee: 0 // Will update when class is selected
+            });
+            // Clear the state so it doesn't trigger again on refresh
+            navigate(location.pathname, { replace: true });
+        }
+    }, [location.state, location.pathname, navigate, fetchData]);
 
     const handleSelectDraft = (admission) => {
+        setIsNewForm(false);
         setSelectedAdmission(admission);
         setEditData({
             ...admission,
@@ -63,8 +88,30 @@ const Admissions = () => {
             address: admission.address || '',
             sectionId: admission.sectionId?._id || '',
             discount: admission.discount || 0,
-            guardianInfo: admission.guardianInfo || { name: '', phone: '', relation: '' }
+            guardianInfo: admission.guardianInfo || { name: '', phone: '', relation: '' },
+            studentPicture: admission.studentPicture || ''
         });
+        setSiblingInfo({ count: 0, loading: false }); // Reset sibling info
+    };
+
+    const handleNewRegistration = () => {
+        setIsNewForm(true);
+        setSelectedAdmission(null);
+        setEditData({
+            parentName: '',
+            studentName: '',
+            phoneNumber: '',
+            classId: '',
+            parentCNIC: '',
+            studentCNIC: '',
+            address: '',
+            sectionId: '',
+            discount: 0,
+            baseFee: 0,
+            guardianInfo: { name: '', phone: '', relation: '' },
+            studentPicture: ''
+        });
+        setSiblingInfo({ count: 0, loading: false });
     };
 
     const formatCNIC = (value) => {
@@ -81,37 +128,108 @@ const Admissions = () => {
         }
     };
 
+    const checkSiblings = async () => {
+        if (!editData.parentCNIC || editData.parentCNIC.length < 15) return;
+
+        setSiblingInfo({ ...siblingInfo, loading: true });
+        try {
+            const endpoint = `${API_URL}/api/admissions/check-siblings/${editData.parentCNIC}`;
+            const queryParam = editData._id && !isNewForm ? `?excludeId=${editData._id}` : '';
+
+            const res = await axios.get(endpoint + queryParam);
+            const count = res.data.siblingCount;
+
+            setSiblingInfo({ count, loading: false });
+
+            // Auto apply discount logic based on sibling count
+            if (activeClass && count > 0) {
+                // Example: 10% for 2nd child (1 sibling), 20% for 3rd+ child (2+ siblings)
+                const discountPercent = count === 1 ? 0.10 : 0.20;
+                const autoDiscount = Math.round(activeClass.baseFee * discountPercent);
+
+                // Only override if current discount is 0 or matches previous auto-discount
+                if (editData.discount === 0 || await showConfirm('Sibling Discount', `Found ${count} sibling(s). Apply ${discountPercent * 100}% discount?`, 'info', 'Apply Discount', 'No thanks')) {
+                    setEditData(prev => ({ ...prev, discount: autoDiscount }));
+                }
+            }
+        } catch (err) {
+            console.error('Failed to check siblings:', err);
+            setSiblingInfo({ ...siblingInfo, loading: false });
+        }
+    };
+
     const handleSaveUpdate = async () => {
         try {
-            const res = await axios.patch(`${API_URL}/api/admissions/${editData._id}`, editData);
-            setAdmissions(admissions.map(a => a._id === res.data._id ? res.data : a));
-            alert('Progress saved successfully');
+            if (isNewForm) {
+                const res = await axios.post(`${API_URL}/api/admissions`, editData);
+                setAdmissions([res.data, ...admissions]);
+                setSelectedAdmission(res.data);
+                setIsNewForm(false);
+                setEditData({ ...editData, _id: res.data._id });
+                showAlert('Success', 'Draft admission created successfully!', 'success');
+            } else {
+                const res = await axios.patch(`${API_URL}/api/admissions/${editData._id}`, editData);
+                setAdmissions(admissions.map(a => a._id === res.data._id ? res.data : a));
+                showAlert('Success', 'Progress saved successfully', 'success');
+            }
         } catch (err) {
-            alert('Failed to save progress');
+            showAlert('Error', err.response?.data?.message || 'Failed to save progress', 'error');
         }
     };
 
     const handleFinalize = async () => {
-        if (!editData.sectionId) return alert('Please assign a section first');
-        if (!editData.parentCNIC || editData.parentCNIC.length < 15) return alert('Valid Parent CNIC is required');
+        if (!editData.sectionId) return showAlert('Action Required', 'Please assign a section first', 'warning');
+        if (!editData.parentCNIC || editData.parentCNIC.length < 15) return showAlert('Action Required', 'Valid Parent CNIC is required', 'warning');
+        if (!editData.phoneNumber) return showAlert('Action Required', 'Phone number is required', 'warning');
 
-        if (!window.confirm('Are you sure? This will finalize the admission and generate a Student ID.')) return;
+        if (!await showConfirm('Finalize Admission', 'Are you sure? This will finalize the admission and generate a Student ID.', 'warning', 'Admit Student')) return;
 
         setIsFinalizing(true);
         try {
-            // First save any updates
-            await axios.patch(`${API_URL}/api/admissions/${editData._id}`, editData);
+            let admissionId = editData._id;
 
-            // Then finalize
-            const res = await axios.post(`${API_URL}/api/admissions/${editData._id}/finalize`);
+            // If it's a new form, we need to create it first before finalizing
+            if (isNewForm) {
+                const saveRes = await axios.post(`${API_URL}/api/admissions`, editData);
+                admissionId = saveRes.data._id;
+                // Add to list so UI updates
+                setAdmissions([saveRes.data, ...admissions]);
+                setIsNewForm(false);
+            } else {
+                // First save any updates to existing draft
+                await axios.patch(`${API_URL}/api/admissions/${admissionId}`, editData);
+            }
+
+            // Then finalize using the ID
+            const res = await axios.post(`${API_URL}/api/admissions/${admissionId}/finalize`);
             setAdmissions(admissions.map(a => a._id === res.data._id ? res.data : a));
-            setSelectedAdmission(null);
-            alert(`Admission Finalized! Student ID: ${res.data.studentId}`);
+            setSelectedAdmission(res.data);
+            showAlert('Success', `Admission Finalized! Student ID: ${res.data.studentId}`, 'success');
             fetchData(); // Refresh to get updated class/section counts if needed
         } catch (err) {
-            alert(err.response?.data?.message || 'Finalization failed');
+            showAlert('Error', err.response?.data?.message || 'Finalization failed', 'error');
         } finally {
             setIsFinalizing(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!selectedAdmission) return;
+
+        const confirmMsg = selectedAdmission.status === 'admitted'
+            ? 'Are you sure? This is a permanent record. Deleting it will restore class capacity.'
+            : 'Are you sure you want to delete this draft?';
+
+        if (!await showConfirm('Delete Admission', confirmMsg, 'error', 'Delete')) return;
+
+        try {
+            await axios.delete(`${API_URL}/api/admissions/${selectedAdmission._id}`);
+            setAdmissions(admissions.filter(a => a._id !== selectedAdmission._id));
+            setSelectedAdmission(null);
+            setIsNewForm(false);
+            showAlert('Success', 'Admission record deleted', 'success');
+        } catch (err) {
+            showAlert('Error', err.response?.data?.message || 'Failed to delete record', 'error');
         }
     };
 
@@ -123,6 +241,13 @@ const Admissions = () => {
 
     const activeClass = classes.find(c => c._id === editData.classId?._id || c._id === editData.classId);
 
+    // Update base fee when class changes (handle pre-fill scenario)
+    useEffect(() => {
+        if (isNewForm && activeClass && editData.baseFee !== activeClass.baseFee) {
+            setEditData(prev => ({ ...prev, baseFee: activeClass.baseFee }));
+        }
+    }, [activeClass, isNewForm, editData.baseFee]);
+
     if (loading) {
         return (
             <div className="p-6 flex justify-center items-center min-vh-60">
@@ -133,17 +258,26 @@ const Admissions = () => {
 
     return (
         <div className="p-6 max-w-7xl mx-auto mb-20">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-800 flex items-center">
-                    <UserCheck className="mr-3 h-8 w-8 text-primary" />
-                    Student Admissions
-                </h1>
-                <p className="text-gray-500 mt-1">Manage registration flow from inquiry drafts to permanent enrollment.</p>
+            <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-800 flex items-center">
+                        <UserCheck className="mr-3 h-8 w-8 text-primary" />
+                        Student Admissions
+                    </h1>
+                    <p className="text-gray-500 mt-1">Manage registration flow from inquiry drafts to permanent enrollment.</p>
+                </div>
+                <button
+                    onClick={handleNewRegistration}
+                    className="flex items-center px-6 py-3 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary/90 transition-all"
+                >
+                    <UserPlus className="mr-2 h-5 w-5" />
+                    New Registration
+                </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* Left Side: List of Admissions */}
-                <div className={`lg:col-span-4 ${selectedAdmission ? 'hidden lg:block' : 'block'}`}>
+                <div className={`lg:col-span-4 ${selectedAdmission || isNewForm ? 'hidden lg:block' : 'block'}`}>
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[700px]">
                         <div className="p-4 border-b border-gray-50">
                             <div className="relative">
@@ -166,8 +300,8 @@ const Admissions = () => {
                                         key={adm._id}
                                         onClick={() => handleSelectDraft(adm)}
                                         className={`p-4 rounded-xl cursor-pointer transition-all ${selectedAdmission?._id === adm._id
-                                                ? 'bg-primary/5 border border-primary/20'
-                                                : 'hover:bg-gray-50'
+                                            ? 'bg-primary/5 border border-primary/20'
+                                            : 'hover:bg-gray-50'
                                             }`}
                                     >
                                         <div className="flex justify-between items-start mb-1">
@@ -193,8 +327,8 @@ const Admissions = () => {
                 </div>
 
                 {/* Right Side: Detailed Form */}
-                <div className={`lg:col-span-8 ${selectedAdmission ? 'block' : 'hidden lg:flex lg:items-center lg:justify-center'}`}>
-                    {!selectedAdmission ? (
+                <div className={`lg:col-span-8 ${selectedAdmission || isNewForm ? 'block' : 'hidden lg:flex lg:items-center lg:justify-center'}`}>
+                    {!selectedAdmission && !isNewForm ? (
                         <div className="text-center p-12 bg-white rounded-3xl border border-dashed border-gray-200">
                             <UserPlus className="h-16 w-16 text-gray-200 mx-auto mb-4" />
                             <h3 className="text-xl font-bold text-gray-400">Select a draft to complete registration</h3>
@@ -207,16 +341,62 @@ const Admissions = () => {
                                         <Edit3 size={24} />
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-bold text-gray-800">Complete Enrollment</h2>
-                                        <p className="text-sm text-gray-500">Ref: {selectedAdmission._id.slice(-8)}</p>
+                                        <h2 className="text-xl font-bold text-gray-800">{isNewForm ? 'New Admission' : 'Complete Enrollment'}</h2>
+                                        <p className="text-sm text-gray-500">{isNewForm ? (editData.linkedInquiryId ? 'from converted inquiry' : 'Direct Registration') : `Ref: ${selectedAdmission?._id.slice(-8)}`}</p>
                                     </div>
                                 </div>
-                                <button onClick={() => setSelectedAdmission(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                                <button onClick={() => { setSelectedAdmission(null); setIsNewForm(false); }} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
                                     <X size={20} className="text-gray-500" />
                                 </button>
                             </div>
 
                             <div className="p-8 space-y-8 max-h-[600px] overflow-y-auto custom-scrollbar">
+                                {/* Profile Picture Section */}
+                                <div className="flex flex-col items-center mb-6">
+                                    <div className="relative group">
+                                        <div className="w-32 h-32 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-gray-100 flex items-center justify-center transition-all group-hover:scale-105">
+                                            {editData.studentPicture ? (
+                                                <img
+                                                    src={`${import.meta.env.VITE_API_URL}${editData.studentPicture}`}
+                                                    alt="Student"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="text-gray-300 flex flex-col items-center">
+                                                    <Camera size={40} />
+                                                    <span className="text-[10px] font-bold mt-1 uppercase">No Photo</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <label className="absolute -bottom-2 -right-2 p-3 bg-primary text-white rounded-2xl shadow-lg cursor-pointer hover:bg-primary/90 transition-all">
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={async (e) => {
+                                                    const file = e.target.files[0];
+                                                    if (!file) return;
+
+                                                    const formData = new FormData();
+                                                    formData.append('studentPicture', file);
+
+                                                    try {
+                                                        const res = await axios.post(`${API_URL}/api/admissions/upload-image`, formData, {
+                                                            headers: { 'Content-Type': 'multipart/form-data' }
+                                                        });
+                                                        setEditData({ ...editData, studentPicture: res.data.imageUrl });
+                                                        showAlert('Success', 'Picture uploaded successfully', 'success');
+                                                    } catch (err) {
+                                                        showAlert('Error', err.response?.data?.message || 'Upload failed', 'error');
+                                                    }
+                                                }}
+                                            />
+                                            <Camera size={16} />
+                                        </label>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase mt-4 tracking-wider">Student Profile Picture</p>
+                                </div>
+
                                 {/* Basic Info Section */}
                                 <section>
                                     <h3 className="text-sm font-bold text-primary uppercase tracking-widest mb-4 flex items-center">
@@ -225,11 +405,28 @@ const Admissions = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="p-4 bg-gray-50 rounded-2xl">
                                             <label className="text-[10px] font-bold text-gray-400 uppercase">Parent Name</label>
-                                            <p className="font-bold text-gray-700">{selectedAdmission.parentName}</p>
+                                            <input
+                                                className="font-bold text-gray-700 bg-transparent w-full outline-none"
+                                                value={editData.parentName || ''}
+                                                onChange={(e) => setEditData({ ...editData, parentName: e.target.value })}
+                                            />
                                         </div>
                                         <div className="p-4 bg-gray-50 rounded-2xl">
                                             <label className="text-[10px] font-bold text-gray-400 uppercase">Student Name</label>
-                                            <p className="font-bold text-gray-700">{selectedAdmission.studentName}</p>
+                                            <input
+                                                className="font-bold text-gray-700 bg-transparent w-full outline-none"
+                                                value={editData.studentName || ''}
+                                                onChange={(e) => setEditData({ ...editData, studentName: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="p-4 bg-gray-50 rounded-2xl">
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase">Phone Number</label>
+                                            <input
+                                                className="font-bold text-gray-700 bg-transparent w-full outline-none"
+                                                value={editData.phoneNumber || ''}
+                                                onChange={(e) => setEditData({ ...editData, phoneNumber: e.target.value })}
+                                                placeholder="e.g. 03xx-xxxxxxx"
+                                            />
                                         </div>
                                     </div>
                                 </section>
@@ -241,16 +438,25 @@ const Admissions = () => {
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
-                                            <label className="text-xs font-bold text-gray-600 ml-1 flex items-center">
-                                                <Hash size={14} className="mr-1 text-primary" /> Parent CNIC
-                                            </label>
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-xs font-bold text-gray-600 ml-1 flex items-center">
+                                                    <Hash size={14} className="mr-1 text-primary" /> Parent CNIC
+                                                </label>
+                                                {siblingInfo.loading ? (
+                                                    <Loader2 size={12} className="animate-spin text-primary" />
+                                                ) : siblingInfo.count > 0 ? (
+                                                    <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                                        {siblingInfo.count} Sibling(s) Found
+                                                    </span>
+                                                ) : null}
+                                            </div>
                                             <input
                                                 type="text"
                                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none font-mono"
                                                 placeholder="12345-1234567-1"
-                                                value={editData.parentCNIC}
+                                                value={editData.parentCNIC || ''}
                                                 onChange={(e) => handleCNICChange('parentCNIC', e.target.value)}
-                                                disabled={selectedAdmission.status === 'admitted'}
+                                                onBlur={checkSiblings}
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -261,9 +467,8 @@ const Admissions = () => {
                                                 type="text"
                                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none font-mono"
                                                 placeholder="12345-1234567-1"
-                                                value={editData.studentCNIC}
+                                                value={editData.studentCNIC || ''}
                                                 onChange={(e) => handleCNICChange('studentCNIC', e.target.value)}
-                                                disabled={selectedAdmission.status === 'admitted'}
                                             />
                                         </div>
                                         <div className="md:col-span-2 space-y-2">
@@ -273,9 +478,53 @@ const Admissions = () => {
                                             <textarea
                                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none"
                                                 rows="2"
-                                                value={editData.address}
+                                                value={editData.address || ''}
                                                 onChange={(e) => setEditData({ ...editData, address: e.target.value })}
-                                                disabled={selectedAdmission.status === 'admitted'}
+                                            />
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/* Guardian Information Section */}
+                                <section>
+                                    <h3 className="text-sm font-bold text-primary uppercase tracking-widest mb-4 flex items-center">
+                                        <span className="w-8 h-[2px] bg-primary mr-3"></span> Guardian Information (Optional)
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div className="p-4 bg-gray-50 rounded-2xl">
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase">Guardian Name</label>
+                                            <input
+                                                className="font-bold text-gray-700 bg-transparent w-full outline-none"
+                                                value={editData.guardianInfo?.name || ''}
+                                                onChange={(e) => setEditData({
+                                                    ...editData,
+                                                    guardianInfo: { ...editData.guardianInfo, name: e.target.value }
+                                                })}
+                                                placeholder="Full Name"
+                                            />
+                                        </div>
+                                        <div className="p-4 bg-gray-50 rounded-2xl">
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase">Guardian Phone</label>
+                                            <input
+                                                className="font-bold text-gray-700 bg-transparent w-full outline-none"
+                                                value={editData.guardianInfo?.phone || ''}
+                                                onChange={(e) => setEditData({
+                                                    ...editData,
+                                                    guardianInfo: { ...editData.guardianInfo, phone: e.target.value }
+                                                })}
+                                                placeholder="03xx-xxxxxxx"
+                                            />
+                                        </div>
+                                        <div className="p-4 bg-gray-50 rounded-2xl">
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase">Relation</label>
+                                            <input
+                                                className="font-bold text-gray-700 bg-transparent w-full outline-none"
+                                                value={editData.guardianInfo?.relation || ''}
+                                                onChange={(e) => setEditData({
+                                                    ...editData,
+                                                    guardianInfo: { ...editData.guardianInfo, relation: e.target.value }
+                                                })}
+                                                placeholder="e.g. Uncle"
                                             />
                                         </div>
                                     </div>
@@ -291,9 +540,28 @@ const Admissions = () => {
                                             <div className="p-2 bg-white rounded-lg mr-3 shadow-sm">
                                                 <GraduationCap className="text-primary" />
                                             </div>
-                                            <div>
-                                                <label className="text-[10px] font-bold text-gray-400">Class</label>
-                                                <p className="font-bold text-gray-800">{activeClass?.name}</p>
+                                            <div className="flex-1">
+                                                {isNewForm ? (
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">Select Class</label>
+                                                        <select
+                                                            className="w-full bg-transparent font-bold text-gray-800 outline-none appearance-none cursor-pointer"
+                                                            value={typeof editData.classId === 'object' ? editData.classId?._id : (editData.classId || '')}
+                                                            onChange={(e) => setEditData({ ...editData, classId: e.target.value, sectionId: '' })}
+                                                            required
+                                                        >
+                                                            <option value="" disabled>Choose a class</option>
+                                                            {classes.map(c => (
+                                                                <option key={c._id} value={c._id}>{c.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">Class</label>
+                                                        <p className="font-bold text-gray-800">{activeClass?.name || 'Not Assigned'}</p>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="space-y-2">
@@ -302,9 +570,9 @@ const Admissions = () => {
                                             </label>
                                             <select
                                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none bg-white appearance-none"
-                                                value={editData.sectionId}
+                                                value={editData.sectionId || ''}
                                                 onChange={(e) => setEditData({ ...editData, sectionId: e.target.value })}
-                                                disabled={selectedAdmission.status === 'admitted'}
+                                                disabled={selectedAdmission?.status === 'admitted'}
                                             >
                                                 <option value="">Select Section</option>
                                                 {activeClass?.sections?.map(s => (
@@ -323,29 +591,29 @@ const Admissions = () => {
                                     <div className="bg-gray-50 p-6 rounded-3xl space-y-4">
                                         <div className="flex justify-between items-center">
                                             <span className="text-gray-500 font-medium">Monthly Tuition (Base)</span>
-                                            <span className="font-mono font-bold text-gray-700 underline decoration-primary/30 decoration-2">Rs. {editData.baseFee?.toLocaleString()}</span>
+                                            <span className="font-mono font-bold text-gray-700 underline decoration-primary/30 decoration-2">Rs. {editData?.baseFee?.toLocaleString() || 0}</span>
                                         </div>
                                         <div className="flex justify-between items-center">
                                             <label className="text-gray-500 font-medium">Discount / Scholarship</label>
                                             <div className="relative">
                                                 <input
                                                     type="number"
-                                                    value={editData.discount}
+                                                    value={editData.discount || 0}
                                                     onChange={(e) => setEditData({ ...editData, discount: parseInt(e.target.value) || 0 })}
                                                     className="w-32 px-3 py-1.5 rounded-lg border-none bg-white shadow-sm focus:ring-2 focus:ring-primary text-right font-mono"
-                                                    disabled={selectedAdmission.status === 'admitted'}
+                                                    disabled={selectedAdmission?.status === 'admitted'}
                                                 />
                                                 <span className="absolute left-3 top-1.5 text-gray-300 pointer-events-none">Rs.</span>
                                             </div>
                                         </div>
                                         <div className="pt-4 border-t border-gray-200 flex justify-between items-center">
                                             <span className="text-gray-800 font-bold">Final Payable Monthly</span>
-                                            <span className="text-2xl font-bold text-secondary">Rs. {(editData.baseFee - editData.discount).toLocaleString()}</span>
+                                            <span className="text-2xl font-bold text-secondary">Rs. {((editData.baseFee || 0) - (editData.discount || 0)).toLocaleString()}</span>
                                         </div>
                                     </div>
                                 </section>
 
-                                {selectedAdmission.status === 'admitted' && (
+                                {selectedAdmission?.status === 'admitted' && (
                                     <div className="bg-green-50 p-6 rounded-3xl border border-green-100 flex items-start gap-4">
                                         <div className="p-2 bg-green-500 rounded-full text-white">
                                             <CheckCircle2 size={24} />
@@ -359,28 +627,29 @@ const Admissions = () => {
                             </div>
 
                             <div className="p-8 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row gap-4">
-                                {selectedAdmission.status !== 'admitted' ? (
-                                    <>
-                                        <button
-                                            onClick={handleSaveUpdate}
-                                            className="flex-1 px-6 py-4 bg-white border border-gray-200 text-gray-600 font-bold rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
-                                        >
-                                            <Save size={20} /> Save Progress
-                                        </button>
-                                        <button
-                                            onClick={handleFinalize}
-                                            disabled={isFinalizing}
-                                            className="flex-[2] px-6 py-4 bg-secondary text-white font-bold rounded-2xl shadow-lg hover:bg-secondary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                        >
-                                            {isFinalizing ? <Loader2 className="animate-spin" /> : <UserCheck size={20} />}
-                                            Finalize & Admit Student
-                                        </button>
-                                    </>
-                                ) : (
-                                    <div className="w-full p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-3 text-amber-700 text-sm">
-                                        <AlertTriangle size={18} />
-                                        Permanent records cannot be modified through this portal.
-                                    </div>
+                                {selectedAdmission && (
+                                    <button
+                                        onClick={handleDelete}
+                                        className="px-6 py-4 bg-red-50 text-red-600 font-bold rounded-2xl hover:bg-red-100 transition-all flex items-center justify-center gap-2 border border-red-100"
+                                    >
+                                        <Trash2 size={20} /> Delete
+                                    </button>
+                                )}
+                                <button
+                                    onClick={handleSaveUpdate}
+                                    className="flex-1 px-6 py-4 bg-white border border-gray-200 text-gray-600 font-bold rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Save size={20} /> {selectedAdmission?.status === 'admitted' ? 'Update Record' : 'Save Progress'}
+                                </button>
+                                {selectedAdmission?.status !== 'admitted' && (
+                                    <button
+                                        onClick={handleFinalize}
+                                        disabled={isFinalizing}
+                                        className="flex-[2] px-6 py-4 bg-secondary text-white font-bold rounded-2xl shadow-lg hover:bg-secondary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {isFinalizing ? <Loader2 className="animate-spin" /> : <UserCheck size={20} />}
+                                        Finalize & Admit Student
+                                    </button>
                                 )}
                             </div>
                         </div>

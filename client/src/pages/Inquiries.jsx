@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
     FileText,
@@ -14,10 +14,12 @@ import {
     ChevronRight,
     Loader2
 } from 'lucide-react';
-import { useAuth } from '../store/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { useDialog } from '../store/DialogContext';
 
 const Inquiries = () => {
-    const { user } = useAuth();
+    const navigate = useNavigate();
+    const { showAlert } = useDialog();
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
     const [inquiries, setInquiries] = useState([]);
@@ -35,11 +37,7 @@ const Inquiries = () => {
         notes: ''
     });
 
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const [inqRes, classRes] = await Promise.all([
@@ -53,7 +51,11 @@ const Inquiries = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [API_URL]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -64,7 +66,7 @@ const Inquiries = () => {
             setShowAddForm(false);
             fetchData();
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to submit inquiry');
+            showAlert('Submission Failed', err.response?.data?.message || 'Failed to submit inquiry', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -75,7 +77,8 @@ const Inquiries = () => {
             await axios.patch(`${API_URL}/api/inquiries/${id}/status`, { status });
             setInquiries(inquiries.map(inq => inq._id === id ? { ...inq, status } : inq));
         } catch (err) {
-            alert('Failed to update status');
+            console.error(err);
+            showAlert('Update Failed', 'Failed to update status', 'error');
         }
     };
 
@@ -230,9 +233,9 @@ const Inquiries = () => {
                             {submitting ? 'Creating Draft...' : 'Submit Inquiry'}
                         </button>
                     </form>
-                    <div className="mt-4 p-3 bg-amber-50 text-amber-700 text-xs rounded-lg flex items-center">
+                    <div className="mt-4 p-3 bg-blue-50 text-blue-700 text-xs rounded-lg flex items-center">
                         <Clock size={14} className="mr-2" />
-                        This will automatically create a draft registration in the Admissions system.
+                        This will create a new inquiry record. You can start an admission from this inquiry later.
                     </div>
                 </div>
             )}
@@ -306,11 +309,24 @@ const Inquiries = () => {
                                             </button>
                                             {inq.status !== 'converted' && (
                                                 <button
-                                                    onClick={() => updateStatus(inq._id, 'converted')}
-                                                    className="p-1.5 rounded-md text-gray-400 hover:text-green-500 transition-all"
-                                                    title="Mark Converted"
+                                                    onClick={() => {
+                                                        navigate('/admissions', {
+                                                            state: {
+                                                                startNewAdmission: true,
+                                                                prefillData: {
+                                                                    parentName: inq.parentName,
+                                                                    studentName: inq.studentName,
+                                                                    phoneNumber: inq.phoneNumber,
+                                                                    classId: inq.classId?._id || '',
+                                                                    linkedInquiryId: inq._id
+                                                                }
+                                                            }
+                                                        });
+                                                    }}
+                                                    className="p-1.5 rounded-md text-gray-400 hover:text-primary transition-all bg-primary/10"
+                                                    title="Start Admission"
                                                 >
-                                                    <CheckCircle size={16} />
+                                                    <FileText size={16} />
                                                 </button>
                                             )}
                                         </div>

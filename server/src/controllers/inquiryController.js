@@ -14,7 +14,7 @@ exports.getInquiries = async (req, res) => {
     }
 };
 
-// @desc    Create new inquiry (and auto-generate admission draft)
+// @desc    Create new inquiry
 // @route   POST /api/inquiries
 // @access  Private
 exports.createInquiry = async (req, res) => {
@@ -26,32 +26,18 @@ exports.createInquiry = async (req, res) => {
             return res.status(404).json({ message: 'Class not found' });
         }
 
-        // 1. Create the Admission Draft first
-        const admissionDraft = new Admission({
-            parentName,
-            studentName,
-            phoneNumber,
-            classId: targetClass._id,
-            baseFee: targetClass.baseFee,
-            status: 'draft'
-        });
-
-        await admissionDraft.save();
-
-        // 2. Create the Inquiry linked to the draft
         const inquiry = new Inquiry({
             parentName,
             studentName,
             phoneNumber,
             classId,
             notes,
-            linkedAdmissionId: admissionDraft._id,
             status: 'new'
         });
 
         await inquiry.save();
 
-        res.status(201).json({ inquiry, admissionDraft });
+        res.status(201).json({ inquiry });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err.message });
     }

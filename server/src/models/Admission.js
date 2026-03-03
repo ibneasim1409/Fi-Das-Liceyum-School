@@ -66,6 +66,10 @@ const admissionSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now
+    },
+    studentPicture: {
+        type: String,
+        trim: true
     }
 });
 

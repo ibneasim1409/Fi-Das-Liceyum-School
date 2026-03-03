@@ -8,7 +8,7 @@ import {
     BookOpen,
     ChevronRight
 } from 'lucide-react';
-import { useAuth } from '../../store/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 
 const Sidebar = () => {
     const { user } = useAuth();

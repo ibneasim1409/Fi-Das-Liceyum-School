@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { useAuth } from '../store/AuthContext';
+import { useAuth } from '../hooks/useAuth';
+import { useDialog } from '../store/DialogContext';
 import { UserPlus, CheckCircle, AlertCircle, Edit, Trash2, X, Save, Users, Eye, EyeOff } from 'lucide-react';
 
 const AdminDashboard = () => {
     const { user: currentUser } = useAuth();
+    const { showAlert, showConfirm } = useDialog();
     const isAdmin = currentUser?.role === 'admin';
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -27,13 +29,7 @@ const AdminDashboard = () => {
     const [editFormData, setEditFormData] = useState({ name: '', email: '', role: '', password: '' });
     const [showPasswords, setShowPasswords] = useState({}); // Track visibility per user
 
-    useEffect(() => {
-        if (isAdmin) {
-            fetchUsers();
-        }
-    }, [isAdmin]);
-
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         setLoadingUsers(true);
         try {
             const res = await axios.get(`${API_URL}/api/auth`);
@@ -43,7 +39,13 @@ const AdminDashboard = () => {
         } finally {
             setLoadingUsers(false);
         }
-    };
+    }, [API_URL]);
+
+    useEffect(() => {
+        if (isAdmin) {
+            fetchUsers();
+        }
+    }, [isAdmin, fetchUsers]);
 
     const handleCreateUser = async (e) => {
         e.preventDefault();
@@ -66,13 +68,14 @@ const AdminDashboard = () => {
     };
 
     const handleDeleteUser = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this user?')) return;
+        if (!await showConfirm('Delete User', 'Are you sure you want to delete this user?', 'error', 'Delete')) return;
 
         try {
             await axios.delete(`${API_URL}/api/auth/${id}`);
             setUsers(users.filter(u => u._id !== id));
         } catch (err) {
-            alert('Failed to delete user');
+            console.error('Failed to delete user:', err);
+            showAlert('Error', 'Failed to delete user', 'error');
         }
     };
 
@@ -111,7 +114,7 @@ const AdminDashboard = () => {
             setEditingUser(null);
         } catch (err) {
             console.error('Update User Frontend Error:', err.response?.data || err.message);
-            alert(`Failed to update user: ${err.response?.data?.message || err.message}`);
+            showAlert('Error', `Failed to update user: ${err.response?.data?.message || err.message}`, 'error');
         }
     };
 

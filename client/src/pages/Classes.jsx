@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
     BookOpen,
@@ -13,16 +13,17 @@ import {
     ChevronDown,
     ChevronUp
 } from 'lucide-react';
-import { useAuth } from '../store/AuthContext';
+import { useAuth } from '../hooks/useAuth';
+import { useDialog } from '../store/DialogContext';
 
 const Classes = () => {
     const { user } = useAuth();
+    const { showAlert, showConfirm } = useDialog();
     const isAdminOrHR = ['admin', 'hr'].includes(user?.role);
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
     const [classes, setClasses] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
 
     // Form states
     const [showAddClass, setShowAddClass] = useState(false);
@@ -30,23 +31,21 @@ const Classes = () => {
     const [sectionForms, setSectionForms] = useState({}); // { classId: { name: '', capacity: 40 } }
     const [expandedClasses, setExpandedClasses] = useState({});
 
-    useEffect(() => {
-        fetchClasses();
-    }, []);
-
-    const fetchClasses = async () => {
+    const fetchClasses = useCallback(async () => {
         setLoading(true);
         try {
             const res = await axios.get(`${API_URL}/api/classes`);
             setClasses(res.data);
-            setError(null);
         } catch (err) {
-            setError('Failed to fetch classes');
             console.error(err);
         } finally {
             setLoading(false);
         }
-    };
+    }, [API_URL]);
+
+    useEffect(() => {
+        fetchClasses();
+    }, [fetchClasses]);
 
     const handleCreateClass = async (e) => {
         e.preventDefault();
@@ -56,17 +55,18 @@ const Classes = () => {
             setShowAddClass(false);
             fetchClasses();
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to create class');
+            showAlert('Error', err.response?.data?.message || 'Failed to create class', 'error');
         }
     };
 
     const handleDeleteClass = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this class and all its sections?')) return;
+        if (!await showConfirm('Delete Class', 'Are you sure you want to delete this class and all its sections?', 'error', 'Delete')) return;
         try {
             await axios.delete(`${API_URL}/api/classes/${id}`);
             setClasses(classes.filter(c => c._id !== id));
         } catch (err) {
-            alert('Failed to delete class');
+            console.error(err);
+            showAlert('Error', 'Failed to delete class', 'error');
         }
     };
 
@@ -79,17 +79,18 @@ const Classes = () => {
             setClasses(classes.map(c => c._id === classId ? res.data : c));
             setSectionForms({ ...sectionForms, [classId]: { name: '', capacity: 40 } });
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to add section');
+            showAlert('Error', err.response?.data?.message || 'Failed to add section', 'error');
         }
     };
 
     const handleDeleteSection = async (sectionId, classId) => {
-        if (!window.confirm('Delete this section?')) return;
+        if (!await showConfirm('Delete Section', 'Delete this section?', 'error', 'Delete')) return;
         try {
             const res = await axios.delete(`${API_URL}/api/classes/sections/${sectionId}`);
             setClasses(classes.map(c => c._id === classId ? res.data : c));
         } catch (err) {
-            alert('Failed to delete section');
+            console.error(err);
+            showAlert('Error', 'Failed to delete section', 'error');
         }
     };
 
