@@ -147,7 +147,7 @@ const FeeManagement = () => {
                                 <input
                                     type="text"
                                     placeholder="e.g. Standard 2024"
-                                    className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                                    className="w-full px-3 py-2 bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary/20"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     required
@@ -158,7 +158,7 @@ const FeeManagement = () => {
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-foreground">Session</label>
                                     <select
-                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none cursor-pointer"
+                                        className="w-full px-3 py-2 bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary/20"
                                         value={formData.sessionId}
                                         onChange={(e) => setFormData({ ...formData, sessionId: e.target.value })}
                                         required
@@ -169,7 +169,7 @@ const FeeManagement = () => {
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-foreground">Class</label>
                                     <select
-                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none cursor-pointer"
+                                        className="w-full px-3 py-2 bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary/20"
                                         value={formData.classId}
                                         onChange={(e) => setFormData({ ...formData, classId: e.target.value })}
                                         required
@@ -188,7 +188,7 @@ const FeeManagement = () => {
                                     <input
                                         type="number"
                                         name="tuitionFee"
-                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary"
+                                        className="w-full px-3 py-2 bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary/20"
                                         value={formData.amounts.tuitionFee}
                                         onChange={handleAmountChange}
                                         required
@@ -199,7 +199,7 @@ const FeeManagement = () => {
                                     <input
                                         type="number"
                                         name="admissionFee"
-                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none"
+                                        className="w-full px-3 py-2 bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary/20"
                                         value={formData.amounts.admissionFee}
                                         onChange={handleAmountChange}
                                     />
@@ -209,7 +209,7 @@ const FeeManagement = () => {
                                     <input
                                         type="number"
                                         name="securityDeposit"
-                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none"
+                                        className="w-full px-3 py-2 bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary/20"
                                         value={formData.amounts.securityDeposit}
                                         onChange={handleAmountChange}
                                     />
@@ -219,9 +219,9 @@ const FeeManagement = () => {
                             <button
                                 type="submit"
                                 disabled={isSaving}
-                                className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-medium flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50 mt-6"
+                                className="w-full bg-primary text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50 mt-6"
                             >
-                                {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                                {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5 text-white" />}
                                 Create Fee Structure
                             </button>
                         </form>
@@ -269,9 +269,10 @@ const FeeManagement = () => {
                                             <td className="px-6 py-4 text-center">
                                                 <button
                                                     onClick={() => handleDelete(fs._id)}
-                                                    className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                                                    className="p-2 bg-gray-900 text-red-500 hover:bg-black rounded-xl transition-all shadow-sm"
+                                                    title="Delete Fee Structure"
                                                 >
-                                                    <Trash2 className="w-5 h-5" />
+                                                    <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </td>
                                         </tr>
