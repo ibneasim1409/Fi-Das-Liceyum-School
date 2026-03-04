@@ -18,7 +18,11 @@ import {
     Calendar,
     AlertTriangle,
     Trash2,
-    Camera
+    Camera,
+    FileText,
+    ChevronRight,
+    Zap,
+    RefreshCw
 } from 'lucide-react';
 
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -36,6 +40,7 @@ const Admissions = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedAdmission, setSelectedAdmission] = useState(null);
     const [isFinalizing, setIsFinalizing] = useState(false);
+    const [feeStructures, setFeeStructures] = useState([]);
 
     // Form editing state
     const [editData, setEditData] = useState({});
@@ -45,12 +50,14 @@ const Admissions = () => {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const [admRes, clsRes] = await Promise.all([
+            const [admRes, clsRes, feeRes] = await Promise.all([
                 axios.get(`${API_URL}/api/admissions`),
-                axios.get(`${API_URL}/api/classes`)
+                axios.get(`${API_URL}/api/classes`),
+                axios.get(`${API_URL}/api/fees`)
             ]);
             setAdmissions(admRes.data);
             setClasses(clsRes.data);
+            setFeeStructures(feeRes.data);
         } catch (err) {
             console.error('Error fetching data:', err);
         } finally {
@@ -177,12 +184,23 @@ const Admissions = () => {
         }
     };
 
+    const handlePrintChallan = async (admissionId) => {
+        try {
+            const res = await axios.get(`${API_URL}/api/challans/admission/${admissionId}`);
+            if (res.data && res.data._id) {
+                navigate(`/challan/${res.data._id}?from=admissions`);
+            }
+        } catch (err) {
+            showAlert('Print Error', err.response?.data?.message || 'Could not find or generate the challan for this admission.', 'error');
+        }
+    };
+
     const handleFinalize = async () => {
         if (!editData.sectionId) return showAlert('Action Required', 'Please assign a section first', 'warning');
         if (!editData.parentCNIC || editData.parentCNIC.length < 15) return showAlert('Action Required', 'Valid Parent CNIC is required', 'warning');
         if (!editData.phoneNumber) return showAlert('Action Required', 'Phone number is required', 'warning');
 
-        if (!await showConfirm('Finalize Admission', 'Are you sure? This will finalize the admission and generate a Student ID.', 'warning', 'Admit Student')) return;
+        if (!await showConfirm('Process Admission', 'This will issue the Admission Bill. Official enrollment and Student ID generation will occur automatically once the bill is paid. Continue?', 'info', 'Process & Issue Bill')) return;
 
         setIsFinalizing(true);
         try {
@@ -204,8 +222,8 @@ const Admissions = () => {
             const res = await axios.post(`${API_URL}/api/admissions/${admissionId}/finalize`);
             setAdmissions(admissions.map(a => a._id === res.data._id ? res.data : a));
             setSelectedAdmission(res.data);
-            showAlert('Success', `Admission Finalized! Student ID: ${res.data.studentId}`, 'success');
-            fetchData(); // Refresh to get updated class/section counts if needed
+            showAlert('Success', 'Admission Bill Issued! Enrollment will complete upon payment.', 'success');
+            fetchData();
         } catch (err) {
             showAlert('Error', err.response?.data?.message || 'Finalization failed', 'error');
         } finally {
@@ -243,10 +261,19 @@ const Admissions = () => {
 
     // Update base fee when class changes (handle pre-fill scenario)
     useEffect(() => {
-        if (isNewForm && activeClass && editData.baseFee !== activeClass.baseFee) {
-            setEditData(prev => ({ ...prev, baseFee: activeClass.baseFee }));
+        if (isNewForm && activeClass) {
+            // Find default fee structure for this class
+            const defaultFS = feeStructures.find(fs => fs.classId === activeClass._id || fs.classId?._id === activeClass._id);
+            if (defaultFS && editData.feeStructureId !== defaultFS._id) {
+                setEditData(prev => ({
+                    ...prev,
+                    feeStructureId: defaultFS._id,
+                    baseFee: defaultFS.amounts.tuitionFee,
+                    feeSnapshot: defaultFS.amounts
+                }));
+            }
         }
-    }, [activeClass, isNewForm, editData.baseFee]);
+    }, [activeClass, isNewForm, feeStructures]);
 
     if (loading) {
         return (
@@ -279,8 +306,8 @@ const Admissions = () => {
                 {/* Left Side: List of Admissions */}
                 <div className={`lg:col-span-4 ${selectedAdmission || isNewForm ? 'hidden lg:block' : 'block'}`}>
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[700px]">
-                        <div className="p-4 border-b border-gray-50">
-                            <div className="relative">
+                        <div className="p-4 border-b border-gray-50 flex items-center gap-2">
+                            <div className="relative flex-1">
                                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                                 <input
                                     type="text"
@@ -290,6 +317,13 @@ const Admissions = () => {
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
+                            <button
+                                onClick={fetchData}
+                                className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg transition-all"
+                                title="Refresh List"
+                            >
+                                <RefreshCw size={18} />
+                            </button>
                         </div>
                         <div className="flex-1 overflow-y-auto divide-y divide-gray-50 p-2 space-y-1">
                             {filteredAdmissions.length === 0 ? (
@@ -306,14 +340,22 @@ const Admissions = () => {
                                     >
                                         <div className="flex justify-between items-start mb-1">
                                             <h4 className="font-bold text-gray-800">{adm.studentName}</h4>
-                                            <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${adm.status === 'admitted' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                                            <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${adm.status === 'admitted'
+                                                ? 'bg-green-100 text-green-700'
+                                                : adm.status === 'pending_admission'
+                                                    ? 'bg-amber-100 text-amber-700'
+                                                    : 'bg-gray-100 text-gray-700'
                                                 }`}>
-                                                {adm.status}
+                                                {adm.status.replace('_', ' ')}
                                             </span>
                                         </div>
                                         <div className="flex items-center text-xs text-gray-500 mb-2">
-                                            <GraduationCap size={12} className="mr-1" />
-                                            {adm.classId?.name} {adm.status === 'admitted' && `• ${adm.studentId}`}
+                                            {adm.classId?.name}
+                                            {adm.status === 'admitted' && (
+                                                <span className="ml-2 bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[9px] font-bold">
+                                                    ID: {adm.studentId}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex items-center text-[10px] text-gray-400">
                                             <Calendar size={10} className="mr-1" />
@@ -341,8 +383,17 @@ const Admissions = () => {
                                         <Edit3 size={24} />
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-bold text-gray-800">{isNewForm ? 'New Admission' : 'Complete Enrollment'}</h2>
-                                        <p className="text-sm text-gray-500">{isNewForm ? (editData.linkedInquiryId ? 'from converted inquiry' : 'Direct Registration') : `Ref: ${selectedAdmission?._id.slice(-8)}`}</p>
+                                        <h2 className="text-xl font-bold text-gray-800">
+                                            {isNewForm ? 'New Admission' : selectedAdmission?.status === 'admitted' ? 'Admitted Student' : 'Complete Enrollment'}
+                                        </h2>
+                                        <p className="text-sm text-gray-500">
+                                            {isNewForm
+                                                ? (editData.linkedInquiryId ? 'from converted inquiry' : 'Direct Registration')
+                                                : selectedAdmission?.status === 'admitted'
+                                                    ? `Student ID: ${selectedAdmission.studentId}`
+                                                    : `Ref: ${selectedAdmission?._id.slice(-8)}`
+                                            }
+                                        </p>
                                     </div>
                                 </div>
                                 <button onClick={() => { setSelectedAdmission(null); setIsNewForm(false); }} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
@@ -428,7 +479,7 @@ const Admissions = () => {
                                                     const val = e.target.value.replace(/\D/g, '').slice(0, 11);
                                                     setEditData({ ...editData, phoneNumber: val });
                                                 }}
-                                                placeholder="03xxxxxxxxx"
+                                                placeholder="03xx-xxxxxxx"
                                             />
                                         </div>
                                     </div>
@@ -575,7 +626,7 @@ const Admissions = () => {
                                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none bg-white appearance-none"
                                                 value={editData.sectionId || ''}
                                                 onChange={(e) => setEditData({ ...editData, sectionId: e.target.value })}
-                                                disabled={selectedAdmission?.status === 'admitted'}
+                                                disabled={selectedAdmission?.status === 'admitted' || selectedAdmission?.status === 'pending_admission'}
                                             >
                                                 <option value="">Select Section</option>
                                                 {activeClass?.sections?.map(s => (
@@ -592,15 +643,59 @@ const Admissions = () => {
                                         <span className="w-8 h-[2px] bg-primary mr-3"></span> Fee Management
                                     </h3>
                                     <div className="bg-gray-50 p-6 rounded-3xl space-y-4">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-gray-500 font-medium">Monthly Tuition (Base)</span>
-                                            <span className="font-mono font-bold text-gray-700 underline decoration-primary/30 decoration-2">Rs. {editData?.baseFee?.toLocaleString() || 0}</span>
+                                        <div className="space-y-2 mb-4">
+                                            <label className="text-xs font-bold text-gray-600 ml-1">Fee Plan (Version)</label>
+                                            <select
+                                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none bg-white font-bold"
+                                                value={editData.feeStructureId || ''}
+                                                onChange={(e) => {
+                                                    const fsId = e.target.value;
+                                                    const selectedFS = feeStructures.find(f => f._id === fsId);
+                                                    if (selectedFS) {
+                                                        setEditData({
+                                                            ...editData,
+                                                            feeStructureId: fsId,
+                                                            baseFee: selectedFS.amounts.tuitionFee,
+                                                            feeSnapshot: selectedFS.amounts
+                                                        });
+                                                    }
+                                                }}
+                                                disabled={selectedAdmission?.status === 'admitted'}
+                                            >
+                                                <option value="">Select Fee Plan</option>
+                                                {feeStructures
+                                                    .filter(fs => (fs.classId?._id || fs.classId) === (editData.classId?._id || editData.classId))
+                                                    .map(fs => (
+                                                        <option key={fs._id} value={fs._id}>{fs.name} ({fs.sessionId})</option>
+                                                    ))
+                                                }
+                                            </select>
                                         </div>
+
+                                        <div className="flex justify-between items-center pt-2">
+                                            <span className="text-gray-500 font-medium">Monthly Tuition (Active Plan)</span>
+                                            <span className="font-mono font-bold text-gray-700 text-lg">Rs. {editData?.feeSnapshot?.tuitionFee?.toLocaleString() || 0}</span>
+                                        </div>
+
                                         <div className="flex justify-between items-center">
-                                            <label className="text-gray-500 font-medium">Discount / Scholarship</label>
+                                            <span className="text-gray-500 font-medium">Admission Fee (One-time)</span>
+                                            <span className="font-mono font-bold text-gray-700">Rs. {editData?.feeSnapshot?.admissionFee?.toLocaleString() || 0}</span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 font-medium">Security Deposit (Refundable)</span>
+                                            <span className="font-mono font-bold text-gray-700">Rs. {editData?.feeSnapshot?.securityDeposit?.toLocaleString() || 0}</span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+                                            <div className="flex-1">
+                                                <label className="text-gray-500 font-medium block">Discount / Scholarship</label>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase">Applied to monthly tuition only</p>
+                                            </div>
                                             <div className="relative">
                                                 <input
                                                     type="number"
+                                                    className="w-32 px-4 py-2 rounded-xl bg-white border border-gray-200 focus:ring-2 focus:ring-primary outline-none font-bold text-right"
                                                     value={editData.discount || 0}
                                                     onChange={(e) => {
                                                         const val = parseInt(e.target.value) || 0;
@@ -609,16 +704,30 @@ const Admissions = () => {
                                                         }
                                                         setEditData({ ...editData, discount: val });
                                                     }}
-                                                    className="w-32 px-3 py-1.5 rounded-lg border-none bg-white shadow-sm focus:ring-2 focus:ring-primary text-right font-mono"
-                                                    disabled={selectedAdmission?.status === 'admitted'}
                                                 />
-                                                <span className="absolute left-3 top-1.5 text-gray-300 pointer-events-none">Rs.</span>
+                                                <span className="absolute left-3 top-2 text-gray-300 pointer-events-none text-sm font-bold">Rs.</span>
                                             </div>
                                         </div>
-                                        <div className="pt-4 border-t border-gray-200 flex justify-between items-center">
-                                            <span className="text-gray-800 font-bold">Final Payable Monthly</span>
-                                            <span className="text-2xl font-bold text-secondary">Rs. {Math.max(0, (editData.baseFee || 0) - (editData.discount || 0)).toLocaleString()}</span>
+
+                                        <div className="pt-4 border-t border-primary/10 flex justify-between items-center">
+                                            <div className="flex-1">
+                                                <span className="text-gray-800 font-extrabold uppercase text-xs tracking-wider block">Total Admission Payable</span>
+                                                <p className="text-[10px] text-primary/60 font-medium">Includes 1st month tuition + one-time fees</p>
+                                            </div>
+                                            <span className="font-mono font-bold text-primary text-2xl">
+                                                Rs. {(
+                                                    (editData?.feeSnapshot?.tuitionFee || 0) +
+                                                    (editData?.feeSnapshot?.admissionFee || 0) +
+                                                    (editData?.feeSnapshot?.securityDeposit || 0) -
+                                                    (editData?.discount || 0)
+                                                ).toLocaleString()}
+                                            </span>
                                         </div>
+                                    </div>
+
+                                    <div className="mt-4 p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex justify-between items-center">
+                                        <span className="text-secondary font-bold text-sm">Recurring Monthly Fee</span>
+                                        <span className="text-xl font-black text-secondary">Rs. {Math.max(0, (editData?.feeSnapshot?.tuitionFee || 0) - (editData?.discount || 0)).toLocaleString()}</span>
                                     </div>
                                 </section>
 
@@ -630,6 +739,18 @@ const Admissions = () => {
                                         <div>
                                             <h4 className="font-bold text-green-800">Registration Complete</h4>
                                             <p className="text-sm text-green-600">Student ID **{selectedAdmission.studentId}** has been issued. This record is now permanent.</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {selectedAdmission?.status === 'pending_admission' && (
+                                    <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100 flex items-start gap-4">
+                                        <div className="p-2 bg-amber-500 rounded-full text-white">
+                                            <AlertTriangle size={24} />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-amber-800">Payment Pending</h4>
+                                            <p className="text-sm text-amber-600">Admission bill has been issued. Enrollment will be finalized automatically once the challan is marked as **Paid**.</p>
                                         </div>
                                     </div>
                                 )}
@@ -650,22 +771,30 @@ const Admissions = () => {
                                 >
                                     <Save size={20} /> {selectedAdmission?.status === 'admitted' ? 'Update Record' : 'Save Progress'}
                                 </button>
-                                {selectedAdmission?.status !== 'admitted' && (
+                                {(selectedAdmission?.status === 'admitted' || selectedAdmission?.status === 'pending_admission') && (
+                                    <button
+                                        onClick={() => handlePrintChallan(selectedAdmission._id)}
+                                        className="flex-[2] px-6 py-4 bg-primary text-white font-bold rounded-2xl shadow-lg hover:shadow-primary/30 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <FileText size={20} /> Print Admission Challan
+                                    </button>
+                                )}
+                                {(selectedAdmission?.status === 'draft' || !selectedAdmission) && (
                                     <button
                                         onClick={handleFinalize}
                                         disabled={isFinalizing}
                                         className="flex-[2] px-6 py-4 bg-secondary text-white font-bold rounded-2xl shadow-lg hover:bg-secondary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
-                                        {isFinalizing ? <Loader2 className="animate-spin" /> : <UserCheck size={20} />}
-                                        Finalize & Admit Student
+                                        {isFinalizing ? <Loader2 className="animate-spin" /> : <CreditCard size={20} />}
+                                        {isFinalizing ? 'Processing...' : 'Process & Issue Bill'}
                                     </button>
                                 )}
                             </div>
                         </div>
                     )}
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

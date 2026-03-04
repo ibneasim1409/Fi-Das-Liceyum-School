@@ -1,6 +1,7 @@
 const Admission = require('../models/Admission');
 const Section = require('../models/Section');
 const Inquiry = require('../models/Inquiry');
+const Challan = require('../models/Challan');
 const multer = require('multer');
 const path = require('path');
 
@@ -125,23 +126,23 @@ exports.updateAdmission = async (req, res) => {
     }
 };
 
-// @desc    Finalize admission (Admit student)
+// @desc    Step 1: Process Admission (Issue Bill)
 // @route   POST /api/admissions/:id/finalize
 // @access  Private
 exports.finalizeAdmission = async (req, res) => {
     try {
         const admission = await Admission.findById(req.params.id);
-        if (!admission) return res.status(404).json({ message: 'Admission not found' });
+        if (!admission) return res.status(404).json({ message: 'Admission record not found' });
 
-        if (admission.status === 'admitted') {
-            return res.status(400).json({ message: 'Student is already admitted' });
+        if (admission.status === 'admitted' || admission.status === 'pending_admission') {
+            return res.status(400).json({ message: `Student is already in ${admission.status} state` });
         }
 
         if (!admission.sectionId) {
-            return res.status(400).json({ message: 'Please assign a section before finalizing' });
+            return res.status(400).json({ message: 'Please assign a section before processing' });
         }
 
-        // 1. Check Section Capacity
+        // 1. Check Section Capacity (Pre-check)
         const section = await Section.findById(admission.sectionId);
         if (!section) return res.status(404).json({ message: 'Section not found' });
 
@@ -149,7 +150,71 @@ exports.finalizeAdmission = async (req, res) => {
             return res.status(400).json({ message: 'Section is at full capacity' });
         }
 
-        // 2. Generate Student ID (Simple format: FL-YYYY-count)
+        // 2. Lock status to pending
+        admission.status = 'pending_admission';
+        await admission.save();
+
+        // 3. Generate Admission Challan
+        try {
+            const challanCount = await Challan.countDocuments();
+            const challanNumber = `CHL-${new Date().getFullYear()}-${(challanCount + 1).toString().padStart(5, '0')}`;
+
+            const admissionChallan = new Challan({
+                challanNumber,
+                admissionId: admission._id,
+                studentId: 'PENDING', // Temporary until paid
+                studentName: admission.studentName,
+                classId: admission.classId,
+                type: 'admission',
+                month: new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date()),
+                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                fees: {
+                    tuitionFee: admission.feeSnapshot?.tuitionFee || 0,
+                    admissionFee: admission.feeSnapshot?.admissionFee || 0,
+                    securityDeposit: admission.feeSnapshot?.securityDeposit || 0,
+                    discount: admission.discount || 0,
+                    otherFees: admission.feeSnapshot?.otherFees || []
+                }
+            });
+            await admissionChallan.save();
+        } catch (chlErr) {
+            // Rollback status if challan fails
+            admission.status = 'draft';
+            await admission.save();
+            console.error('Failed to generate Admission Challan:', chlErr);
+            throw new Error(`Bill generation failed: ${chlErr.message}. Student reverted to draft.`);
+        }
+
+        const updatedAdmission = await Admission.findById(admission._id)
+            .populate('classId', 'name')
+            .populate('sectionId', 'name');
+
+        res.status(200).json(updatedAdmission);
+    } catch (err) {
+        console.error('Processing Error Details:', err);
+        res.status(500).json({ message: err.message || 'Server error' });
+    }
+};
+
+/**
+ * Internal Helper: Stage 2 - Final Enrollment (Triggered on Payment)
+ * Not a route, called by challanController
+ */
+exports.completeEnrollment = async (admissionId) => {
+    try {
+        const admission = await Admission.findById(admissionId);
+        if (!admission || admission.status !== 'pending_admission') {
+            console.log(`Bypassing auto-enroll: Admission ${admissionId} is either not found or not in pending state.`);
+            return;
+        }
+
+        // 1. Check Section Capacity again (Crucial for race conditions)
+        const section = await Section.findById(admission.sectionId);
+        if (!section || section.capacity <= 0) {
+            throw new Error(`Cannot complete enrollment: Section ${section?.name || 'Unknown'} is now full.`);
+        }
+
+        // 2. Generate Student ID
         const year = new Date().getFullYear();
         const count = await Admission.countDocuments({ status: 'admitted' });
         const studentId = `FL-${year}-${(count + 1).toString().padStart(3, '0')}`;
@@ -164,24 +229,22 @@ exports.finalizeAdmission = async (req, res) => {
         section.capacity = section.capacity - 1;
         await section.save();
 
-        // 5. Update linked Inquiry status to 'converted' (if one exists)
-        try {
-            await Inquiry.findOneAndUpdate(
-                { linkedAdmissionId: admission._id },
-                { status: 'converted' }
-            );
-        } catch (inqErr) {
-            console.error('Failed to update linked Inquiry (non-fatal):', inqErr);
-        }
+        // 5. Update linked Inquiry status to 'converted'
+        await Inquiry.findOneAndUpdate(
+            { linkedAdmissionId: admission._id },
+            { status: 'converted' }
+        );
 
-        const updatedAdmission = await Admission.findById(admission._id)
-            .populate('classId', 'name')
-            .populate('sectionId', 'name');
+        // 6. Update the Challan itself to reflect the new Student ID
+        await Challan.updateMany(
+            { admissionId: admission._id },
+            { studentId: studentId }
+        );
 
-        res.status(200).json(updatedAdmission);
+        console.log(`Enrollment completed successfully for student: ${studentId}`);
     } catch (err) {
-        console.error('Finalization Error Details:', err);
-        res.status(500).json({ message: `Server error: ${err.message}` });
+        console.error('CRITICAL: Failed to complete enrollment on payment:', err);
+        // In a real system, this would trigger an alert to the admin
     }
 };
 

@@ -6,6 +6,9 @@ import AdminDashboard from './pages/AdminDashboard';
 import Inquiries from './pages/Inquiries';
 import Admissions from './pages/Admissions';
 import Classes from './pages/Classes';
+import FeeManagement from './pages/FeeManagement';
+import ChallanManagement from './pages/ChallanManagement';
+import ChallanPrintView from './pages/ChallanPrintView';
 import { AuthProvider } from './store/AuthContext';
 import { DialogProvider } from './store/DialogContext';
 import ProtectedRoute from './components/layout/ProtectedRoute';
@@ -48,7 +51,15 @@ function App() {
                 <Route element={<ProtectedRoute roles={['admin', 'hr']} />}>
                   <Route path="/admissions" element={<Admissions />} />
                   <Route path="/classes" element={<Classes />} />
+                  <Route path="/fees" element={<FeeManagement />} />
+                  <Route path="/challans" element={<ChallanManagement />} />
                 </Route>
+
+              </Route>
+
+              {/* Print Views (Protected but no Layout) */}
+              <Route element={<ProtectedRoute roles={['admin', 'hr', 'front_desk']} />}>
+                <Route path="/challan/:id" element={<ChallanPrintView />} />
               </Route>
             </Route>
           </Routes>

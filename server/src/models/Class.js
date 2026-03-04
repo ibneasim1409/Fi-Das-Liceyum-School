@@ -7,11 +7,6 @@ const classSchema = new mongoose.Schema({
         unique: true,
         trim: true
     },
-    baseFee: {
-        type: Number,
-        required: [true, 'Base fee is required'],
-        min: [0, 'Fee cannot be negative']
-    },
     sections: [
         {
             type: mongoose.Schema.Types.ObjectId,

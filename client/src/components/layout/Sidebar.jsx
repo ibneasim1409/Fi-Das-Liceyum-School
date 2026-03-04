@@ -6,6 +6,8 @@ import {
     FileText,
     UserCheck,
     BookOpen,
+    CreditCard,
+    Receipt,
     ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -44,6 +46,18 @@ const Sidebar = () => {
             icon: <BookOpen size={20} />,
             path: '/classes',
             roles: ['admin', 'hr']
+        },
+        {
+            title: 'Fee Management',
+            icon: <CreditCard size={20} />,
+            path: '/fees',
+            roles: ['admin', 'hr']
+        },
+        {
+            title: 'Fee Collection',
+            icon: <Receipt size={20} />,
+            path: '/challans',
+            roles: ['admin', 'hr', 'front_desk']
         },
     ];
 

@@ -35,6 +35,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/inquiries', require('./routes/inquiryRoutes'));
 app.use('/api/admissions', require('./routes/admissionRoutes'));
+app.use('/api/fees', require('./routes/feeRoutes'));
+app.use('/api/challans', require('./routes/challanRoutes'));
 
 // Basic Route
 app.get('/', (req, res) => {

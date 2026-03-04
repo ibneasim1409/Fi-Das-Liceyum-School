@@ -32,7 +32,7 @@ exports.getClasses = async (req, res) => {
 // @route   POST /api/classes
 // @access  Private/Admin/HR
 exports.createClass = async (req, res) => {
-    const { name, baseFee } = req.body;
+    const { name } = req.body;
 
     try {
         let existingClass = await Class.findOne({ name });
@@ -41,8 +41,7 @@ exports.createClass = async (req, res) => {
         }
 
         const newClass = new Class({
-            name,
-            baseFee
+            name
         });
 
         await newClass.save();

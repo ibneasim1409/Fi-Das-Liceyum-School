@@ -61,9 +61,22 @@ const admissionSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    feeStructureId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'FeeStructure'
+    },
+    feeSnapshot: {
+        tuitionFee: Number,
+        admissionFee: Number,
+        securityDeposit: Number,
+        otherFees: [{
+            label: String,
+            amount: Number
+        }]
+    },
     status: {
         type: String,
-        enum: ['draft', 'admitted', 'withdrawn'],
+        enum: ['draft', 'pending_admission', 'admitted', 'withdrawn'],
         default: 'draft'
     },
     admittedAt: {

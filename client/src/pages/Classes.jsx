@@ -27,7 +27,7 @@ const Classes = () => {
 
     // Form states
     const [showAddClass, setShowAddClass] = useState(false);
-    const [classForm, setClassForm] = useState({ name: '', baseFee: '' });
+    const [classForm, setClassForm] = useState({ name: '' });
     const [sectionForms, setSectionForms] = useState({}); // { classId: { name: '', capacity: 40 } }
     const [expandedClasses, setExpandedClasses] = useState({});
 
@@ -51,7 +51,7 @@ const Classes = () => {
         e.preventDefault();
         try {
             await axios.post(`${API_URL}/api/classes`, classForm);
-            setClassForm({ name: '', baseFee: '' });
+            setClassForm({ name: '' });
             setShowAddClass(false);
             fetchClasses();
         } catch (err) {
@@ -141,7 +141,7 @@ const Classes = () => {
                         <PlusCircle className="mr-2 h-6 w-6 text-primary" />
                         Create New Class Level
                     </h2>
-                    <form onSubmit={handleCreateClass} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-end">
+                    <form onSubmit={handleCreateClass} className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">Class Name</label>
                             <input
@@ -151,17 +151,6 @@ const Classes = () => {
                                 onChange={(e) => setClassForm({ ...classForm, name: e.target.value })}
                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
                                 placeholder="e.g. Grade 10, O-Levels"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Monthly Base Fee (Rs.)</label>
-                            <input
-                                type="number"
-                                required
-                                value={classForm.baseFee}
-                                onChange={(e) => setClassForm({ ...classForm, baseFee: e.target.value })}
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                placeholder="5000"
                             />
                         </div>
                         <button
@@ -229,7 +218,6 @@ const Classes = () => {
                                     </div>
                                     <div>
                                         <h3 className="text-xl font-bold text-gray-800">{cls.name}</h3>
-                                        <p className="text-sm text-gray-500">Base Fee: Rs. {cls.baseFee?.toLocaleString()}</p>
                                     </div>
                                     <button className="ml-4 p-1 text-gray-400 hover:text-primary transition-colors">
                                         {expandedClasses[cls._id] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
@@ -326,7 +314,7 @@ const Classes = () => {
                     ))
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 
