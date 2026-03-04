@@ -159,6 +159,14 @@ exports.finalizeAdmission = async (req, res) => {
             const challanCount = await Challan.countDocuments();
             const challanNumber = `CHL-${new Date().getFullYear()}-${(challanCount + 1).toString().padStart(5, '0')}`;
 
+            const now = new Date();
+            let billingDate = new Date();
+            // If admitted after the 25th, bill for the next month to be fair
+            if (now.getDate() > 25) {
+                billingDate.setMonth(now.getMonth() + 1);
+            }
+            const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(billingDate);
+
             const admissionChallan = new Challan({
                 challanNumber,
                 admissionId: admission._id,
@@ -166,7 +174,7 @@ exports.finalizeAdmission = async (req, res) => {
                 studentName: admission.studentName,
                 classId: admission.classId,
                 type: 'admission',
-                month: new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date()),
+                month: monthLabel,
                 dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
                 fees: {
                     tuitionFee: admission.feeSnapshot?.tuitionFee || 0,
@@ -214,10 +222,22 @@ exports.completeEnrollment = async (admissionId) => {
             throw new Error(`Cannot complete enrollment: Section ${section?.name || 'Unknown'} is now full.`);
         }
 
-        // 2. Generate Student ID
+        // 2. Generate Student ID (Collision-resistant)
         const year = new Date().getFullYear();
-        const count = await Admission.countDocuments({ status: 'admitted' });
-        const studentId = `FL-${year}-${(count + 1).toString().padStart(3, '0')}`;
+        let studentId;
+        let isUnique = false;
+        let count = await Admission.countDocuments({ status: 'admitted' });
+        let nextNum = count + 1;
+
+        while (!isUnique) {
+            studentId = `FL-${year}-${nextNum.toString().padStart(3, '0')}`;
+            const existing = await Admission.findOne({ studentId });
+            if (!existing) {
+                isUnique = true;
+            } else {
+                nextNum++;
+            }
+        }
 
         // 3. Update Admission
         admission.status = 'admitted';

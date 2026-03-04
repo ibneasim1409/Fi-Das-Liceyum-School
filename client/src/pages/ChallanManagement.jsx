@@ -11,7 +11,8 @@ import {
     Eye,
     ChevronRight,
     Loader2,
-    Zap
+    Zap,
+    Trash2
 } from 'lucide-react';
 import { useDialog } from '../store/DialogContext';
 
@@ -88,6 +89,27 @@ const ChallanManagement = () => {
         }
     };
 
+    const handleVoidBatch = async () => {
+        const currentMonth = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
+        const monthInput = prompt('Enter month to VOID (e.g. "March 2024"):', currentMonth);
+
+        if (!monthInput) return;
+
+        const confirmed = await showConfirm(`Are you sure you want to VOID all pending monthly challans for ${monthInput}? This will mark them as void and they will not be payable.`);
+        if (!confirmed) return;
+
+        setLoading(true);
+        try {
+            const res = await axios.post(`${API_URL}/api/challans/void-batch`, { month: monthInput });
+            showAlert('Success', res.data.message, 'success');
+            fetchChallans();
+        } catch (err) {
+            showAlert('Error', err.response?.data?.message || 'Failed to void batch', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const filteredChallans = challans.filter(c => {
         const matchesSearch =
             c.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -101,6 +123,7 @@ const ChallanManagement = () => {
             case 'paid': return 'bg-green-100 text-green-700 border-green-200';
             case 'pending': return 'bg-amber-100 text-amber-700 border-amber-200';
             case 'overdue': return 'bg-red-100 text-red-700 border-red-200';
+            case 'void': return 'bg-gray-200 text-gray-500 border-gray-300 italic';
             default: return 'bg-gray-100 text-gray-700 border-gray-200';
         }
     };
@@ -110,6 +133,7 @@ const ChallanManagement = () => {
             case 'paid': return <CheckCircle size={14} />;
             case 'pending': return <Clock size={14} />;
             case 'overdue': return <AlertCircle size={14} />;
+            case 'void': return <Trash2 size={14} />;
             default: return null;
         }
     };
@@ -134,6 +158,12 @@ const ChallanManagement = () => {
                         className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all"
                     >
                         <Zap size={18} fill="currentColor" /> Generate Monthly
+                    </button>
+                    <button
+                        onClick={handleVoidBatch}
+                        className="flex items-center gap-2 bg-white text-destructive border-2 border-destructive/20 px-5 py-2.5 rounded-2xl font-bold hover:bg-destructive/5 transition-all"
+                    >
+                        <Trash2 size={18} /> Void Batch
                     </button>
                     <div className="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex gap-1">
                         {['all', 'pending', 'paid'].map((s) => (
@@ -233,7 +263,7 @@ const ChallanManagement = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            {challan.status !== 'paid' && (
+                                            {['pending', 'overdue'].includes(challan.status) && (
                                                 <button
                                                     onClick={() => handleMarkPaid(challan._id)}
                                                     className="p-2 text-green-600 hover:bg-green-50 rounded-xl transition-all"

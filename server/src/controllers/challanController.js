@@ -87,6 +87,10 @@ exports.updateChallan = async (req, res) => {
         const currentChallan = await Challan.findById(req.params.id);
         if (!currentChallan) return res.status(404).json({ message: 'Challan not found' });
 
+        if (currentChallan.status === 'void') {
+            return res.status(400).json({ message: 'Cannot update a voided challan' });
+        }
+
         const challan = await Challan.findByIdAndUpdate(
             req.params.id,
             { status, paymentMethod, paidAt: status === 'paid' ? (paidAt || new Date()) : undefined },
@@ -127,11 +131,11 @@ exports.generateMonthlyChallans = async (req, res) => {
         let skippedCount = 0;
 
         for (const student of students) {
-            // 2. Check if challan already exists for this student and month
+            // 2. Check if ANY non-void challan (monthly or admission) already exists for this student and month
             const existing = await Challan.findOne({
                 studentId: student.studentId,
                 month,
-                type: 'monthly'
+                status: { $ne: 'void' }
             });
 
             if (existing) {
@@ -167,6 +171,27 @@ exports.generateMonthlyChallans = async (req, res) => {
             message: 'Monthly generation complete',
             generatedCount,
             skippedCount
+        });
+    } catch (err) {
+        res.status(500).json({ message: 'Server error', error: err.message });
+    }
+};
+// @desc    Void all pending challans for a specific month
+// @route   POST /api/challans/void-batch
+// @access  Private (Admin)
+exports.voidBatch = async (req, res) => {
+    try {
+        const { month, type } = req.body;
+        if (!month) return res.status(400).json({ message: 'Month is required' });
+
+        const result = await Challan.updateMany(
+            { month, type: type || 'monthly', status: 'pending' },
+            { status: 'void' }
+        );
+
+        res.status(200).json({
+            message: `Successfully voided ${result.modifiedCount} pending challans for ${month}`,
+            count: result.modifiedCount
         });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err.message });
