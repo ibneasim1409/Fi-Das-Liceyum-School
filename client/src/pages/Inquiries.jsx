@@ -191,7 +191,10 @@ const Inquiries = () => {
                                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                                     placeholder="e.g. 03xx-xxxxxxx"
                                     value={formData.phoneNumber}
-                                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                                    onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                        setFormData({ ...formData, phoneNumber: val });
+                                    }}
                                 />
                             </div>
                         </div>

@@ -27,7 +27,13 @@ const admissionSchema = new mongoose.Schema({
     phoneNumber: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
+        validate: {
+            validator: function (v) {
+                return v.length <= 11;
+            },
+            message: props => `Phone number cannot exceed 11 digits!`
+        }
     },
     address: {
         type: String,
@@ -75,7 +81,7 @@ const admissionSchema = new mongoose.Schema({
 
 // Virtual for final fee calculation
 admissionSchema.virtual('finalFee').get(function () {
-    return this.baseFee - this.discount;
+    return Math.max(0, this.baseFee - this.discount);
 });
 
 // Ensure virtuals are included in JSON

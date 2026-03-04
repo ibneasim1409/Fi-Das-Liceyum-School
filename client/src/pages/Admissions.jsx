@@ -424,8 +424,11 @@ const Admissions = () => {
                                             <input
                                                 className="font-bold text-gray-700 bg-transparent w-full outline-none"
                                                 value={editData.phoneNumber || ''}
-                                                onChange={(e) => setEditData({ ...editData, phoneNumber: e.target.value })}
-                                                placeholder="e.g. 03xx-xxxxxxx"
+                                                onChange={(e) => {
+                                                    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                                    setEditData({ ...editData, phoneNumber: val });
+                                                }}
+                                                placeholder="03xxxxxxxxx"
                                             />
                                         </div>
                                     </div>
@@ -599,7 +602,13 @@ const Admissions = () => {
                                                 <input
                                                     type="number"
                                                     value={editData.discount || 0}
-                                                    onChange={(e) => setEditData({ ...editData, discount: parseInt(e.target.value) || 0 })}
+                                                    onChange={(e) => {
+                                                        const val = parseInt(e.target.value) || 0;
+                                                        if (val > (editData.baseFee || 0)) {
+                                                            showAlert('Invalid Discount', 'Discount cannot exceed the base tuition fee.', 'warning');
+                                                        }
+                                                        setEditData({ ...editData, discount: val });
+                                                    }}
                                                     className="w-32 px-3 py-1.5 rounded-lg border-none bg-white shadow-sm focus:ring-2 focus:ring-primary text-right font-mono"
                                                     disabled={selectedAdmission?.status === 'admitted'}
                                                 />
@@ -608,7 +617,7 @@ const Admissions = () => {
                                         </div>
                                         <div className="pt-4 border-t border-gray-200 flex justify-between items-center">
                                             <span className="text-gray-800 font-bold">Final Payable Monthly</span>
-                                            <span className="text-2xl font-bold text-secondary">Rs. {((editData.baseFee || 0) - (editData.discount || 0)).toLocaleString()}</span>
+                                            <span className="text-2xl font-bold text-secondary">Rs. {Math.max(0, (editData.baseFee || 0) - (editData.discount || 0)).toLocaleString()}</span>
                                         </div>
                                     </div>
                                 </section>

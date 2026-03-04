@@ -14,7 +14,13 @@ const inquirySchema = new mongoose.Schema({
     phoneNumber: {
         type: String,
         required: [true, 'Phone number is required'],
-        trim: true
+        trim: true,
+        validate: {
+            validator: function (v) {
+                return v.length <= 11;
+            },
+            message: props => `Phone number cannot exceed 11 digits!`
+        }
     },
     classId: {
         type: mongoose.Schema.Types.ObjectId,
