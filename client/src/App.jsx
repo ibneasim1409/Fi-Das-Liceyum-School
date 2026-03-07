@@ -9,12 +9,18 @@ import Classes from './pages/Classes';
 import FeeManagement from './pages/FeeManagement';
 import ChallanManagement from './pages/ChallanManagement';
 import ChallanPrintView from './pages/ChallanPrintView';
+import Communications from './pages/Communications';
+import SettingsWhatsApp from './pages/SettingsWhatsApp';
+import SettingsSMS from './pages/SettingsSMS';
+import StudentProfile from './pages/StudentProfile';
+import StudentDirectory from './pages/StudentDirectory';
 import { AuthProvider } from './store/AuthContext';
 import { DialogProvider } from './store/DialogContext';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import Login from './pages/Login';
 
 const DashboardLayout = () => {
+  // ... existing layout code ...
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans antialiased">
       <Navbar />
@@ -46,13 +52,18 @@ function App() {
 
                 <Route element={<ProtectedRoute roles={['admin', 'hr', 'front_desk']} />}>
                   <Route path="/inquiries" element={<Inquiries />} />
+                  <Route path="/communications" element={<Communications />} />
                 </Route>
 
                 <Route element={<ProtectedRoute roles={['admin', 'hr']} />}>
                   <Route path="/admissions" element={<Admissions />} />
+                  <Route path="/students" element={<StudentDirectory />} />
+                  <Route path="/students/:id" element={<StudentProfile />} />
                   <Route path="/classes" element={<Classes />} />
                   <Route path="/fees" element={<FeeManagement />} />
                   <Route path="/challans" element={<ChallanManagement />} />
+                  <Route path="/settings/whatsapp" element={<SettingsWhatsApp />} />
+                  <Route path="/settings/sms" element={<SettingsSMS />} />
                 </Route>
 
               </Route>

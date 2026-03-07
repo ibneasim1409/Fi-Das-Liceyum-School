@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard,
     ShieldCheck,
@@ -8,7 +8,10 @@ import {
     BookOpen,
     CreditCard,
     Receipt,
-    ChevronRight
+    ChevronRight,
+    MessageCircle,
+    MessageSquare,
+    Settings
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -42,6 +45,12 @@ const Sidebar = () => {
             roles: ['admin', 'hr']
         },
         {
+            title: 'Student Directory',
+            icon: <UserCheck size={20} />, // Changing to generic User or Users is better but UserCheck is imported
+            path: '/students',
+            roles: ['admin', 'hr', 'teacher', 'front_desk']
+        },
+        {
             title: 'Classes',
             icon: <BookOpen size={20} />,
             path: '/classes',
@@ -57,6 +66,12 @@ const Sidebar = () => {
             title: 'Fee Collection',
             icon: <Receipt size={20} />,
             path: '/challans',
+            roles: ['admin', 'hr', 'front_desk']
+        },
+        {
+            title: 'Communications',
+            icon: <MessageCircle size={20} />,
+            path: '/communications',
             roles: ['admin', 'hr', 'front_desk']
         },
     ];
@@ -87,6 +102,52 @@ const Sidebar = () => {
                     </Link>
                 ))}
             </div>
+
+            {/* Settings Section */}
+            <nav className="px-4 pb-4 space-y-1">
+                <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    System Settings
+                </h3>
+                <NavLink
+                    to="/settings/whatsapp"
+                    className={({ isActive }) =>
+                        `flex items-center justify-between px-4 py-3 rounded-lg transition-all group ${isActive
+                            ? 'bg-secondary text-white hover:text-white shadow-md'
+                            : 'text-gray-600 hover:bg-white/50 hover:text-secondary'
+                        }`
+                    }
+                >
+                    <div className="flex items-center space-x-3">
+                        <span className={`${location.pathname === '/settings/whatsapp' ? 'text-white' : 'text-gray-400 group-hover:text-secondary'}`}>
+                            <Settings size={20} />
+                        </span>
+                        <span className="font-semibold text-sm tracking-wide">WhatsApp API</span>
+                    </div>
+                    {location.pathname === '/settings/whatsapp' && (
+                        <div className="w-1.5 h-1.5 bg-background rounded-full"></div>
+                    )}
+                </NavLink>
+
+                <NavLink
+                    to="/settings/sms"
+                    className={({ isActive }) =>
+                        `flex items-center justify-between px-4 py-3 rounded-lg transition-all group ${isActive
+                            ? 'bg-secondary text-white hover:text-white shadow-md'
+                            : 'text-gray-600 hover:bg-white/50 hover:text-secondary'
+                        }`
+                    }
+                >
+                    <div className="flex items-center space-x-3">
+                        <span className={`${location.pathname === '/settings/sms' ? 'text-white' : 'text-gray-400 group-hover:text-secondary'}`}>
+                            <MessageSquare size={20} />
+                        </span>
+                        <span className="font-semibold text-sm tracking-wide">SMS Gateway Setup</span>
+                    </div>
+                    {location.pathname === '/settings/sms' && (
+                        <div className="w-1.5 h-1.5 bg-background rounded-full"></div>
+                    )}
+                </NavLink>
+            </nav>
 
             <div className="p-4 border-t border-gray-100 italic text-[11px] text-gray-400 text-center">
                 Fi Das Liceyum v1.0

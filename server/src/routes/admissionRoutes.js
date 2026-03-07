@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
     getAdmissions,
+    getAdmissionById,
     createAdmission,
     updateAdmission,
     finalizeAdmission,
@@ -14,6 +15,7 @@ const { auth, authorize } = require('../middlewares/auth');
 router.use(auth);
 
 router.get('/', getAdmissions);
+router.get('/:id', getAdmissionById);
 router.post('/', createAdmission);
 router.get('/check-siblings/:cnic', checkSiblings);
 router.patch('/:id', updateAdmission);

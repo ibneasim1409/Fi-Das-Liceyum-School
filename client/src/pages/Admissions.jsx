@@ -22,7 +22,9 @@ import {
     FileText,
     ChevronRight,
     Zap,
-    RefreshCw
+    RefreshCw,
+    Eye,
+    Check
 } from 'lucide-react';
 
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -340,14 +342,43 @@ const Admissions = () => {
                                     >
                                         <div className="flex justify-between items-start mb-1">
                                             <h4 className="font-bold text-gray-800">{adm.studentName}</h4>
-                                            <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${adm.status === 'admitted'
-                                                ? 'bg-green-100 text-green-700'
-                                                : adm.status === 'pending_admission'
-                                                    ? 'bg-amber-100 text-amber-700'
-                                                    : 'bg-gray-100 text-gray-700'
-                                                }`}>
-                                                {adm.status.replace('_', ' ')}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${adm.status === 'admitted'
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : adm.status === 'pending_admission'
+                                                        ? 'bg-amber-100 text-amber-700'
+                                                        : 'bg-gray-100 text-gray-700'
+                                                    }`}>
+                                                    {adm.status.replace('_', ' ')}
+                                                </span>
+                                                {adm.status === 'draft' && (
+                                                    <>
+                                                        <button
+                                                            title="Delete Draft"
+                                                            onClick={(e) => { e.stopPropagation(); setSelectedAdmission(adm); setTimeout(handleDelete, 0); }}
+                                                            className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors shadow-sm"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                        <button
+                                                            title="Process Admission"
+                                                            onClick={(e) => { e.stopPropagation(); setSelectedAdmission(adm); setEditData(adm); setTimeout(handleFinalize, 0); }}
+                                                            className="p-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors shadow-sm"
+                                                        >
+                                                            <Check size={16} />
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {adm.status !== 'draft' && (
+                                                    <button
+                                                        title="View Profile"
+                                                        onClick={(e) => { e.stopPropagation(); navigate(`/students/${adm._id}`); }}
+                                                        className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="flex items-center text-xs text-gray-500 mb-2">
                                             {adm.classId?.name}

@@ -86,6 +86,25 @@ exports.getAdmissions = async (req, res) => {
     }
 };
 
+// @desc    Get single admission structure
+// @route   GET /api/admissions/:id
+// @access  Private
+exports.getAdmissionById = async (req, res) => {
+    try {
+        const admission = await Admission.findById(req.params.id)
+            .populate('classId', 'name')
+            .populate('sectionId', 'name');
+
+        if (!admission) {
+            return res.status(404).json({ message: 'Admission not found' });
+        }
+
+        res.status(200).json(admission);
+    } catch (err) {
+        res.status(500).json({ message: 'Server error', error: err.message });
+    }
+};
+
 // @desc    Update admission details (filling the draft)
 // @route   PATCH /api/admissions/:id
 // @access  Private
