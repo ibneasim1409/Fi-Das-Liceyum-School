@@ -43,6 +43,26 @@ const schoolSettingsSchema = new mongoose.Schema({
             type: Boolean,
             default: false
         }
+    },
+
+    // Enterprise Billing Rules
+    billing: {
+        earlyBirdDiscountPercentage: {
+            type: Number,
+            default: 10
+        },
+        earlyBirdValidityDays: {
+            type: Number,
+            default: 10
+        },
+        siblingDiscountIncrement: {
+            type: Number,
+            default: 5 // e.g., Child 1: 0%, Child 2: 5%, Child 3: 10%, Child 4: 15%
+        },
+        siblingDiscountCap: {
+            type: Number,
+            default: 5 // Maximum number of siblings to evaluate for discounts
+        }
     }
 }, { timestamps: true });
 

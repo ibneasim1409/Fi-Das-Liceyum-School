@@ -161,8 +161,8 @@ export default function StudentProfile() {
                                     'Start a WhatsApp conversation'
                         }
                         className={`flex items-center justify-center gap-2 w-full md:w-48 text-white px-5 py-2.5 rounded-xl font-medium transition-all ${waStatus.isRegistered === false
-                                ? 'bg-gray-300 cursor-not-allowed opacity-60'
-                                : 'bg-[#25D366] hover:bg-[#1DA851] shadow-sm shadow-[#25D366]/20'
+                            ? 'bg-gray-300 cursor-not-allowed opacity-60'
+                            : 'bg-[#25D366] hover:bg-[#1DA851] shadow-sm shadow-[#25D366]/20'
                             }`}
                     >
                         {waStatus.loading
@@ -270,14 +270,14 @@ export default function StudentProfile() {
                             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
                                 <div>
                                     <p className="text-sm font-medium text-gray-500">Net Monthly Tuition Fee</p>
-                                    <p className="text-3xl font-black text-gray-900 tracking-tight mt-1">Rs {student.finalFee?.toLocaleString()}</p>
+                                    <p className="text-3xl font-black text-gray-900 tracking-tight mt-1">Rs {student.netTuitionFee?.toLocaleString()}</p>
                                 </div>
-                                {student.discount > 0 && (
+                                {student.siblingDiscountPercentage > 0 && (
                                     <div className="text-right">
-                                        <p className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-lg inline-block">
-                                            Scholarship Applied
+                                        <p className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-1 rounded-lg inline-block">
+                                            {student.siblingDiscountPercentage}% Sibling Discount
                                         </p>
-                                        <p className="text-sm font-medium text-gray-400 line-through mt-1">Rs {student.baseFee?.toLocaleString()}</p>
+                                        <p className="text-sm font-medium text-gray-400 line-through mt-1">Rs {student.feeSnapshot?.tuitionFee?.toLocaleString()}</p>
                                     </div>
                                 )}
                             </div>
@@ -285,6 +285,10 @@ export default function StudentProfile() {
                             <div>
                                 <h4 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">Admission Fee Snapshot</h4>
                                 <div className="space-y-3">
+                                    <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 border-dashed">
+                                        <span className="text-gray-600 text-sm">Fee Structure Name</span>
+                                        <span className="font-medium text-gray-900 bg-secondary/10 text-secondary px-2 py-0.5 rounded-lg text-xs">{student.feeSnapshot?.structureName || 'Custom'}</span>
+                                    </div>
                                     <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 border-dashed">
                                         <span className="text-gray-600 text-sm">Base Tuition Fee</span>
                                         <span className="font-medium text-gray-900">Rs {student.feeSnapshot?.tuitionFee?.toLocaleString() || 0}</span>

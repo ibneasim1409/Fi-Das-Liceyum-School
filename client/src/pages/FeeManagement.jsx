@@ -21,6 +21,14 @@ const FeeManagement = () => {
     const [classes, setClasses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+    const [billingSettings, setBillingSettings] = useState({
+        earlyBirdDiscountPercentage: 10,
+        earlyBirdValidityDays: 10,
+        siblingDiscountIncrement: 5,
+        siblingDiscountCap: 5
+    });
 
     // Generate allowed sessions (Current Year + 5 years ahead)
     const currentYear = new Date().getFullYear();
@@ -31,7 +39,7 @@ const FeeManagement = () => {
     });
 
     const [formData, setFormData] = useState({
-        name: '',
+        name: 'Default Plan',
         sessionId: sessions[0],
         classId: '',
         amounts: {
@@ -50,12 +58,23 @@ const FeeManagement = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [feeRes, classRes] = await Promise.all([
+            const [feeRes, classRes, settingsRes] = await Promise.all([
                 axios.get(`${API_URL}/api/fees`),
-                axios.get(`${API_URL}/api/classes`)
+                axios.get(`${API_URL}/api/classes`),
+                axios.get(`${API_URL}/api/settings`)
             ]);
             setFeeStructures(feeRes.data);
             setClasses(classRes.data);
+
+            if (settingsRes.data?.billing) {
+                const b = settingsRes.data.billing;
+                setBillingSettings({
+                    earlyBirdDiscountPercentage: b.earlyBirdDiscountPercentage ?? 10,
+                    earlyBirdValidityDays: b.earlyBirdValidityDays ?? 10,
+                    siblingDiscountIncrement: b.siblingDiscountIncrement ?? 5,
+                    siblingDiscountCap: b.siblingDiscountCap ?? 5
+                });
+            }
         } catch (err) {
             console.error('Error fetching data:', err);
             showAlert('error', 'Failed to load data');
@@ -75,6 +94,42 @@ const FeeManagement = () => {
         }));
     };
 
+    const handleSettingsChange = (e) => {
+        const { name, value } = e.target;
+        setBillingSettings(prev => ({
+            ...prev,
+            [name]: parseFloat(value) || 0
+        }));
+    };
+
+    const handleSettingsSubmit = async (e) => {
+        e.preventDefault();
+        const conf = await showConfirm('Changes to global billing rules will apply to the NEXT monthly billing cycle. Previously generated challans are Grandfathered and remain unaffected to maintain accounting integrity. Proceed?');
+        if (!conf) return;
+
+        if (billingSettings.siblingDiscountCap > 15) {
+            showAlert('error', 'Sibling cap cannot exceed 15 (75% maximum discount).');
+            return;
+        }
+
+        setIsSavingSettings(true);
+        try {
+            const payload = {
+                earlyBirdDiscountPercentage: billingSettings.earlyBirdDiscountPercentage,
+                earlyBirdValidityDays: billingSettings.earlyBirdValidityDays,
+                siblingDiscountIncrement: billingSettings.siblingDiscountIncrement,
+                siblingDiscountCap: billingSettings.siblingDiscountCap
+            };
+            await axios.put(`${API_URL}/api/settings/billing`, payload);
+            showAlert('success', 'Global Billing Rules updated successfully');
+        } catch (err) {
+            console.error(err);
+            showAlert('error', 'Error updating billing settings');
+        } finally {
+            setIsSavingSettings(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.classId) return showAlert('warning', 'Please select a class');
@@ -85,7 +140,7 @@ const FeeManagement = () => {
             showAlert('success', 'Fee structure created successfully');
             fetchData();
             setFormData({
-                name: '',
+                name: 'Default Plan',
                 sessionId: sessions[0],
                 classId: '',
                 amounts: { tuitionFee: 0, admissionFee: 0, securityDeposit: 0, otherFees: [] },
@@ -131,6 +186,77 @@ const FeeManagement = () => {
                 </div>
             </div>
 
+            {/* Enterprise Billing Settings Widget */}
+            <div className="bg-gradient-to-br from-primary via-secondary to-primary rounded-xl shadow-lg border border-primary/50 overflow-hidden mb-8">
+                <div className="p-6 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                            <Settings className="w-5 h-5 text-white/80" />
+                            Global Billing Engine Rules
+                        </h2>
+                        <p className="text-white/80 text-sm mt-1">Configure automated logic for Early Bird & Sibling deduplications.</p>
+                    </div>
+                    <button
+                        onClick={handleSettingsSubmit}
+                        disabled={isSavingSettings}
+                        className="bg-white text-primary px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-xl shadow-primary/20"
+                    >
+                        {isSavingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Apply Rules
+                    </button>
+                </div>
+
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 bg-black/10 backdrop-blur-sm">
+                    {/* Early Bird Configuration */}
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center mb-4 border-b border-white/20 pb-2">
+                            <h3 className="text-white/90 font-semibold tracking-wide uppercase text-xs">Early Bird Settings</h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-white/80">Discount (%)</label>
+                                <div className="relative">
+                                    <input type="number" name="earlyBirdDiscountPercentage" value={billingSettings.earlyBirdDiscountPercentage} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-white/80">Validity (Days)</label>
+                                <div className="relative">
+                                    <input type="number" name="earlyBirdValidityDays" value={billingSettings.earlyBirdValidityDays} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Sibling Scaling Configuration */}
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center mb-4 border-b border-white/20 pb-2">
+                            <h3 className="text-white/90 font-semibold tracking-wide uppercase text-xs">Sibling Hierarchy Discounts</h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-white/80">Discount per Sibling (%)</label>
+                                <input type="number" name="siblingDiscountIncrement" value={billingSettings.siblingDiscountIncrement} min={0} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-white/80">Max Siblings Setup (Cap)</label>
+                                <input type="number" name="siblingDiscountCap" value={billingSettings.siblingDiscountCap} min={0} max={15} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
+                            </div>
+                        </div>
+                        <div className="mt-3 p-3 bg-black/20 rounded-md border border-white/5">
+                            <p className="text-xs font-mono text-white/70 leading-relaxed">
+                                <span className="text-white/40 block mb-1 uppercase tracking-wider text-[10px]">Mathematical Preview</span>
+                                Child 1: Base (0% off)<br />
+                                Child 2: {billingSettings.siblingDiscountIncrement}% off<br />
+                                Child 3: {billingSettings.siblingDiscountIncrement * 2}% off<br />
+                                {billingSettings.siblingDiscountCap > 3 && `...up to Child ${billingSettings.siblingDiscountCap + 1} (${billingSettings.siblingDiscountIncrement * billingSettings.siblingDiscountCap}% off)`}
+                                {billingSettings.siblingDiscountCap <= 3 && `(Caps at Child ${billingSettings.siblingDiscountCap + 1} with ${billingSettings.siblingDiscountIncrement * billingSettings.siblingDiscountCap}% off)`}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                 {/* Creation Form */}
                 <div className="xl:col-span-1">
@@ -144,14 +270,17 @@ const FeeManagement = () => {
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-foreground">Structure Name</label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g. Standard 2024"
+                                <select
                                     className="w-full px-3 py-2 bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary/20"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     required
-                                />
+                                >
+                                    <option value="Default Plan">Default Plan</option>
+                                    <option value="Referred Plan">Referred Plan</option>
+                                    <option value="Scholarship Plan 25%">Scholarship Plan 25%</option>
+                                    <option value="Scholarship Plan 50%">Scholarship Plan 50%</option>
+                                </select>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">

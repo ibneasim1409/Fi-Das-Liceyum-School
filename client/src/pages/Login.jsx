@@ -1,15 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { useAuth } from '../hooks/useAuth';
 import { School, Loader2 } from 'lucide-react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [schoolName, setSchoolName] = useState('Loading...');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
+
+    // Intercept Login if Database is Sterile
+    useEffect(() => {
+        const initLoginScreen = async () => {
+            try {
+                // Check if Setup is needed
+                const setupRes = await axios.get(`${API_URL}/api/auth/setup-status`);
+                if (setupRes.data.needsSetup) {
+                    navigate('/setup');
+                    return;
+                }
+
+                // If Setup is complete, fetch the dynamic School Name branding
+                const brandingRes = await axios.get(`${API_URL}/api/settings/school`);
+                setSchoolName(brandingRes.data.schoolName || 'Welcome System');
+
+            } catch (err) {
+                console.error("Initialization check failed", err);
+                setSchoolName('Offline Mode');
+            }
+        };
+        initLoginScreen();
+    }, [navigate]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -32,10 +59,10 @@ const Login = () => {
                     <School className="h-12 w-12 text-primary" />
                 </div>
                 <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                    Fi Das Liceyum School
+                    {schoolName}
                 </h2>
                 <p className="mt-2 text-center text-sm text-gray-600">
-                    Educational ERP System
+                    Enterprise ERP System
                 </p>
             </div>
 

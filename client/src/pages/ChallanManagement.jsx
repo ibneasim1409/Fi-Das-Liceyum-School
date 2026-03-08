@@ -69,7 +69,7 @@ const ChallanManagement = () => {
 
     const handleGenerateMonthly = async () => {
         const currentMonth = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
-        const monthInput = prompt('Enter month for generation (e.g. "April 2024"):', currentMonth);
+        const monthInput = prompt('WARNING: Billing is strictly automated on the 1st of every month. Are you absolutely sure you want to run a manual override generation?\n\nEnter month for generation (e.g. "April 2024"):', currentMonth);
 
         if (!monthInput) return;
 
@@ -91,11 +91,15 @@ const ChallanManagement = () => {
 
     const handleVoidBatch = async () => {
         const currentMonth = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
-        const monthInput = prompt('Enter month to VOID (e.g. "March 2024"):', currentMonth);
+        const monthInput = prompt('EMERGENCY: Enter month to VOID (e.g. "March 2024"):', currentMonth);
 
         if (!monthInput) return;
 
-        const confirmed = await showConfirm(`Are you sure you want to VOID all pending monthly challans for ${monthInput}? This will mark them as void and they will not be payable.`);
+        const confirmed = await showConfirm(
+            'CRITICAL WARNING - VOID BATCH',
+            `Are you absolutely certain you want to VOID all pending monthly challans for ${monthInput}? This cannot be undone.`,
+            'error'
+        );
         if (!confirmed) return;
 
         setLoading(true);
@@ -153,18 +157,6 @@ const ChallanManagement = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <button
-                        onClick={handleGenerateMonthly}
-                        className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all"
-                    >
-                        <Zap size={18} fill="currentColor" /> Generate Monthly
-                    </button>
-                    <button
-                        onClick={handleVoidBatch}
-                        className="flex items-center gap-2 bg-white text-destructive border-2 border-destructive/20 px-5 py-2.5 rounded-2xl font-bold hover:bg-destructive/5 transition-all"
-                    >
-                        <Trash2 size={18} /> Void Batch
-                    </button>
                     <div className="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex gap-1">
                         {['all', 'pending', 'paid'].map((s) => (
                             <button
@@ -179,6 +171,35 @@ const ChallanManagement = () => {
                             </button>
                         ))}
                     </div>
+                </div>
+            </div>
+
+            {/* Enterprise Emergency Override Panel */}
+            <div className="bg-red-50/50 border border-red-100 rounded-3xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-start gap-4">
+                    <div className="bg-red-100 p-3 rounded-2xl text-red-600 mt-1 md:mt-0">
+                        <AlertCircle size={24} />
+                    </div>
+                    <div>
+                        <h3 className="text-red-900 font-bold text-lg leading-tight tracking-tight">Enterprise Emergency Controls</h3>
+                        <p className="text-red-700/80 text-sm font-medium mt-1">
+                            Fee generation operates on an automated schedule (1st of every month). Use these controls <span className="font-bold underline">only</span> for critical manual overrides or mass error recovery.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                    <button
+                        onClick={handleVoidBatch}
+                        className="flex items-center justify-center gap-2 bg-white text-red-600 border border-red-200 px-5 py-3 rounded-2xl font-bold hover:bg-red-50 transition-all shadow-sm"
+                    >
+                        <Trash2 size={18} /> Void Bad Batch
+                    </button>
+                    <button
+                        onClick={handleGenerateMonthly}
+                        className="flex items-center justify-center gap-2 bg-red-600 text-white px-5 py-3 rounded-2xl font-bold hover:bg-red-700 transition-all shadow-sm"
+                    >
+                        <Zap size={18} fill="currentColor" /> Override Generation
+                    </button>
                 </div>
             </div>
 
@@ -267,7 +288,7 @@ const ChallanManagement = () => {
                                                 <button
                                                     onClick={() => handleMarkPaid(challan._id)}
                                                     className="p-2 text-green-600 hover:bg-green-50 rounded-xl transition-all"
-                                                    title="Mark as Paid"
+                                                    title="Mark as Paid (Cash)"
                                                 >
                                                     <CheckCircle size={20} />
                                                 </button>

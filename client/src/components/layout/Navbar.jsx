@@ -1,11 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { School, User, Settings, LogOut, Clock, Calendar } from 'lucide-react';
+import axios from 'axios';
 
 import { useAuth } from '../../hooks/useAuth';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const Navbar = () => {
     const { user, logout } = useAuth();
     const [currentTime, setCurrentTime] = useState(new Date());
+    const [schoolName, setSchoolName] = useState('Fi Das Liceyum');
+
+    // Fetch dynamic school identity early
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const res = await axios.get(`${API_URL}/api/settings/school`);
+                if (res.data.schoolName) {
+                    setSchoolName(res.data.schoolName);
+                }
+            } catch (err) {
+                console.error("Failed to load branding: ", err);
+            }
+        };
+        fetchSettings();
+    }, []);
 
     useEffect(() => {
         const timer = setInterval(() => {
@@ -38,7 +57,9 @@ const Navbar = () => {
                 <div className="flex justify-between h-16">
                     <div className="flex items-center">
                         <School className="h-8 w-8 text-background" />
-                        <span className="ml-2 text-xl font-bold text-white">Fi Das Liceyum</span>
+                        <span className="ml-2 text-xl font-bold text-white transition-opacity duration-500 ease-in-out">
+                            {schoolName}
+                        </span>
                     </div>
 
                     {/* Live Date/Time Display */}

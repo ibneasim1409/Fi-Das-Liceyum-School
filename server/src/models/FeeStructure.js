@@ -3,8 +3,9 @@ const mongoose = require('mongoose');
 const feeStructureSchema = new mongoose.Schema({
     name: {
         type: String,
-        required: [true, 'Fee structure name is required'],
-        trim: true
+        required: true,
+        enum: ['Default Plan', 'Referred Plan', 'Scholarship Plan 25%', 'Scholarship Plan 50%'],
+        default: 'Default Plan'
     },
     sessionId: {
         type: String,

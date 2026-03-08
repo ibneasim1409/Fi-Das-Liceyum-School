@@ -77,6 +77,14 @@ const Communications = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const [toasts, setToasts] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [viewMode, setViewMode] = useState('chats'); // 'chats' | 'bulk'
+
+    // -- Bulk Messaging State --
+    const [blastMessage, setBlastMessage] = useState('');
+    const [blastChannels, setBlastChannels] = useState(['whatsapp']);
+    const [selectedClasses, setSelectedClasses] = useState([]);
+    const [availableClasses, setAvailableClasses] = useState([]);
+    const [isBlasting, setIsBlasting] = useState(false);
 
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -142,10 +150,19 @@ const Communications = () => {
         fetchConversations();
         fetchChannelSettings();
 
+        const fetchClasses = async () => {
+            try {
+                const res = await axios.get(`${API_URL}/api/classes`);
+                setAvailableClasses(res.data);
+            } catch (err) { }
+        };
+
         sock.on('whatsapp_ready', () => {
             setWaStatus({ isReady: true, isAuthenticating: false, qr: null, reason: null });
             addToast('WhatsApp Cloud API connected successfully!', 'success');
         });
+
+        fetchClasses();
         sock.on('whatsapp_disconnected', (reason) => {
             setWaStatus({ isReady: false, isAuthenticating: false, qr: null, reason });
             const msg = reason === 'api_not_configured' ? 'Cloud API credentials missing. Go to Settings.' : 'WhatsApp API error.';
@@ -418,16 +435,32 @@ const Communications = () => {
                 {/* ── LEFT: Conversation Sidebar ─────────────────────────────── */}
                 <div className="w-1/3 bg-white border-r border-gray-200 flex flex-col min-w-0">
 
-                    {/* Header */}
-                    <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center flex-shrink-0">
-                        <h2 className="text-lg font-black text-gray-900">Chats</h2>
-                        <button
-                            onClick={fetchConversations}
-                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            title="Refresh conversations"
-                        >
-                            <RefreshCw className="w-4 h-4" />
-                        </button>
+                    {/* Header & Tabs */}
+                    <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col gap-3 flex-shrink-0">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-lg font-black text-gray-900">Communications</h2>
+                            <button
+                                onClick={fetchConversations}
+                                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Refresh conversations"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="flex bg-gray-200/50 p-1 rounded-lg">
+                            <button
+                                onClick={() => setViewMode('chats')}
+                                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${viewMode === 'chats' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Active Chats
+                            </button>
+                            <button
+                                onClick={() => setViewMode('bulk')}
+                                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${viewMode === 'bulk' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Bulk Blast
+                            </button>
+                        </div>
                     </div>
 
                     {/* WA Status Banner — always visible */}
@@ -488,9 +521,140 @@ const Communications = () => {
                     </div>
                 </div>
 
-                {/* ── RIGHT: Chat Area ─────────────────────────────────────── */}
+                {/* ── RIGHT: Chat Area or Bulk Blast ─────────────────────────────────────── */}
                 <div className="flex-1 flex flex-col bg-[#e5ddd5]/30 min-w-0">
-                    {activeChat ? (
+                    {viewMode === 'bulk' ? (
+                        <div className="flex-1 overflow-y-auto w-full bg-white h-full relative">
+                            {/* Bulk Background Decor */}
+                            <div className="absolute inset-0 z-0 bg-blue-50/30"></div>
+
+                            <div className="max-w-3xl mx-auto px-8 py-10 relative z-10 w-full h-full flex flex-col">
+                                <div className="mb-6">
+                                    <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
+                                        <LayoutTemplate className="w-6 h-6 text-blue-600" />
+                                        Enterprise Bulk Messaging
+                                    </h1>
+                                    <p className="text-sm text-gray-500 mt-1">Send emergency alerts, fee reminders, or announcements to multiple classes.</p>
+                                </div>
+
+                                <div className="space-y-6 flex-1 flex flex-col">
+                                    {/* Class Selection */}
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                                        <label className="block text-sm font-bold text-gray-700 mb-3">Target Audience (Select Classes)</label>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                            {availableClasses.length === 0 ? (
+                                                <p className="text-sm text-gray-400 col-span-full">No classes found.</p>
+                                            ) : availableClasses.map(cls => (
+                                                <label key={cls._id} className="flex items-center p-3 rounded-xl border border-gray-100 bg-gray-50 hover:bg-blue-50/50 cursor-pointer transition">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                        checked={selectedClasses.includes(cls._id)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) setSelectedClasses([...selectedClasses, cls._id]);
+                                                            else setSelectedClasses(selectedClasses.filter(id => id !== cls._id));
+                                                        }}
+                                                    />
+                                                    <span className="ml-3 text-sm font-bold text-gray-700">{cls.name}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Channel Selection */}
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                                        <label className="block text-sm font-bold text-gray-700 mb-3">Delivery Channels</label>
+                                        <div className="flex gap-4">
+                                            <label className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all ${blastChannels.includes('whatsapp') ? 'border-green-500 bg-green-50' : 'border-gray-100 hover:border-green-200'}`}>
+                                                <input
+                                                    type="checkbox" className="hidden"
+                                                    checked={blastChannels.includes('whatsapp')}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setBlastChannels([...blastChannels, 'whatsapp']);
+                                                        else setBlastChannels(blastChannels.filter(c => c !== 'whatsapp'));
+                                                    }}
+                                                />
+                                                <MessageSquare className={`w-5 h-5 ${blastChannels.includes('whatsapp') ? 'text-green-600' : 'text-gray-400'}`} />
+                                                <span className={`font-bold ${blastChannels.includes('whatsapp') ? 'text-green-700' : 'text-gray-500'}`}>WhatsApp API</span>
+                                            </label>
+                                            <label className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all ${blastChannels.includes('sms') ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-blue-200'}`}>
+                                                <input
+                                                    type="checkbox" className="hidden"
+                                                    checked={blastChannels.includes('sms')}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setBlastChannels([...blastChannels, 'sms']);
+                                                        else setBlastChannels(blastChannels.filter(c => c !== 'sms'));
+                                                    }}
+                                                />
+                                                <Smartphone className={`w-5 h-5 ${blastChannels.includes('sms') ? 'text-blue-600' : 'text-gray-400'}`} />
+                                                <span className={`font-bold ${blastChannels.includes('sms') ? 'text-blue-700' : 'text-gray-500'}`}>Local SMS</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Message Body */}
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col">
+                                        <label className="block text-sm font-bold text-gray-700 mb-2">Message Body (Text Only)</label>
+                                        <textarea
+                                            className="w-full flex-1 min-h-[150px] p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none text-sm"
+                                            placeholder="Write your announcement here..."
+                                            value={blastMessage}
+                                            onChange={e => setBlastMessage(e.target.value)}
+                                        ></textarea>
+                                    </div>
+
+                                    <div className="flex justify-end pt-2">
+                                        <button
+                                            onClick={async () => {
+                                                if (selectedClasses.length === 0) return addToast('Please select at least one class', 'error');
+                                                if (blastChannels.length === 0) return addToast('Please select at least one channel', 'error');
+                                                if (!blastMessage.trim()) return addToast('Message cannot be empty', 'error');
+
+                                                setIsBlasting(true);
+                                                try {
+                                                    // 1. Get all students in selected classes
+                                                    const resStudents = await axios.get(`${API_URL}/api/admissions`);
+                                                    const students = resStudents.data.filter(s =>
+                                                        s.status === 'admitted' &&
+                                                        s.classId &&
+                                                        selectedClasses.includes(s.classId._id || s.classId)
+                                                    );
+
+                                                    const studentIds = students.map(s => s._id);
+
+                                                    if (studentIds.length === 0) {
+                                                        addToast('No active students found in the selected classes', 'error');
+                                                        setIsBlasting(false);
+                                                        return;
+                                                    }
+
+                                                    // 2. Transmit to blast API
+                                                    addToast(`Pushing message to ${studentIds.length} students...`, 'info', 5000);
+                                                    const res = await axios.post(`${API_URL}/api/chat/blast`, {
+                                                        studentIds,
+                                                        message: blastMessage,
+                                                        channels: blastChannels
+                                                    });
+
+                                                    addToast(`Blast Complete: ${res.data.stats.success} succeeded, ${res.data.stats.failed} failed.`, 'success', 8000);
+                                                    setBlastMessage('');
+                                                } catch (err) {
+                                                    addToast(err.response?.data?.message || 'Blast failed completely.', 'error');
+                                                } finally {
+                                                    setIsBlasting(false);
+                                                }
+                                            }}
+                                            disabled={isBlasting}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {isBlasting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                                            {isBlasting ? 'Processing Batch...' : 'Initiate Bulk Blast'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : activeChat ? (
                         <>
                             {/* Chat Header */}
                             <div className="h-16 bg-white border-b border-gray-200 flex items-center px-6 shadow-sm z-10 flex-shrink-0">

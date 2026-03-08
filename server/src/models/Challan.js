@@ -50,6 +50,14 @@ const challanSchema = new mongoose.Schema({
     },
     paidAt: Date,
     paymentMethod: String,
+    processedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    metadata: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {} // Used by Cron engine for 'appliedEarlyBird', 'voidReason', etc.
+    },
     createdAt: {
         type: Date,
         default: Date.now

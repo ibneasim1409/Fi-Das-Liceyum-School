@@ -18,6 +18,7 @@ import { AuthProvider } from './store/AuthContext';
 import { DialogProvider } from './store/DialogContext';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import Login from './pages/Login';
+import SetupWizard from './pages/SetupWizard';
 
 const DashboardLayout = () => {
   // ... existing layout code ...
@@ -41,6 +42,7 @@ function App() {
         <Router>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/setup" element={<SetupWizard />} />
 
             <Route element={<ProtectedRoute />}>
               <Route element={<DashboardLayout />}>

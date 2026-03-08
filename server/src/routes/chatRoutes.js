@@ -10,6 +10,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.get('/conversations', auth, chatController.getConversations);
 router.get('/messages/:conversationId', auth, chatController.getMessages);
 router.post('/send', auth, upload.single('attachment'), chatController.sendMessage);
+router.post('/blast', auth, chatController.sendBulkBlast);
 router.get('/media/:mediaId', auth, chatController.downloadMedia);
 router.get('/whatsapp/status', auth, chatController.getWhatsAppStatus);
 router.get('/whatsapp/validate/:phone', auth, chatController.validateWhatsApp);

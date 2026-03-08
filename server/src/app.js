@@ -4,6 +4,7 @@ const path = require('path');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
+const { initCronJobs } = require('./cronJobs');
 
 dotenv.config();
 
@@ -55,5 +56,10 @@ app.use((err, req, res, next) => {
         stack: process.env.NODE_ENV === 'production' ? null : err.stack,
     });
 });
+
+// Start the Enterprise Cron Engine
+if (process.env.NODE_ENV !== 'test') {
+    initCronJobs();
+}
 
 module.exports = app;

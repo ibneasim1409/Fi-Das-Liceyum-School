@@ -53,11 +53,7 @@ const admissionSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Section'
     },
-    baseFee: {
-        type: Number,
-        required: true
-    },
-    discount: {
+    siblingDiscountPercentage: {
         type: Number,
         default: 0
     },
@@ -66,6 +62,7 @@ const admissionSchema = new mongoose.Schema({
         ref: 'FeeStructure'
     },
     feeSnapshot: {
+        structureName: String,
         tuitionFee: Number,
         admissionFee: Number,
         securityDeposit: Number,
@@ -92,9 +89,11 @@ const admissionSchema = new mongoose.Schema({
     }
 });
 
-// Virtual for final fee calculation
-admissionSchema.virtual('finalFee').get(function () {
-    return Math.max(0, this.baseFee - this.discount);
+// Virtual for final tuition fee calculation
+admissionSchema.virtual('netTuitionFee').get(function () {
+    const base = this.feeSnapshot?.tuitionFee || 0;
+    const discountMultiplier = this.siblingDiscountPercentage / 100;
+    return Math.max(0, base - (base * discountMultiplier));
 });
 
 // Ensure virtuals are included in JSON

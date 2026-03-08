@@ -2,6 +2,8 @@ const Challan = require('../models/Challan');
 const Admission = require('../models/Admission');
 const Class = require('../models/Class');
 const { completeEnrollment } = require('./admissionController');
+const { sendMessage } = require('../services/whatsappService');
+const { sendSMS } = require('../services/smsService');
 
 // @desc    Get all challans
 // @route   GET /api/challans
@@ -61,7 +63,7 @@ exports.getAdmissionChallan = async (req, res) => {
                         tuitionFee: admission.feeSnapshot?.tuitionFee || 0,
                         admissionFee: admission.feeSnapshot?.admissionFee || 0,
                         securityDeposit: admission.feeSnapshot?.securityDeposit || 0,
-                        discount: admission.discount || 0,
+                        discount: (admission.feeSnapshot?.tuitionFee || 0) * ((admission.siblingDiscountPercentage || 0) / 100),
                         otherFees: admission.feeSnapshot?.otherFees || []
                     }
                 });
@@ -91,9 +93,16 @@ exports.updateChallan = async (req, res) => {
             return res.status(400).json({ message: 'Cannot update a voided challan' });
         }
 
+        const updateData = { status, paymentMethod, paidAt: status === 'paid' ? (paidAt || new Date()) : undefined };
+
+        // Log the user who processed the cash payment
+        if (status === 'paid' && req.user && req.user._id) {
+            updateData.processedBy = req.user._id;
+        }
+
         const challan = await Challan.findByIdAndUpdate(
             req.params.id,
-            { status, paymentMethod, paidAt: status === 'paid' ? (paidAt || new Date()) : undefined },
+            updateData,
             { new: true }
         );
 
@@ -158,13 +167,26 @@ exports.generateMonthlyChallans = async (req, res) => {
                 dueDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // Default 10 days
                 fees: {
                     tuitionFee: student.feeSnapshot?.tuitionFee || 0,
-                    discount: student.discount || 0,
+                    discount: (student.feeSnapshot?.tuitionFee || 0) * ((student.siblingDiscountPercentage || 0) / 100),
                     otherFees: [] // Monthly usually just tuition
                 }
             });
 
             await challan.save();
             generatedCount++;
+
+            // Bulk Dispatch Overrides
+            if (student.phoneNumber) {
+                const message = `📢 Monthly Fee Alert - Fi-Das Liceyum School\n\nDear Parent, the fee challan for *${student.studentName}* for the month of *${month}* has been manually generated.\n\n*Challan No:* ${challanNumber}\n*Total Fee:* Rs. ${challan.totalAmount.toLocaleString()}\n*Due Date:* ${new Date(challan.dueDate).toLocaleDateString()}\n\nYour PDF challan is available via the portal.`;
+
+                sendMessage(student.phoneNumber, message).catch(err => {
+                    console.log(`[Manual Blast] WhatsApp skipped for ${student.studentName} (${err.message})`);
+                });
+
+                sendSMS(student.phoneNumber, message).catch(err => {
+                    console.log(`[Manual Blast] SMS skipped for ${student.studentName} (${err.message})`);
+                });
+            }
         }
 
         res.status(200).json({

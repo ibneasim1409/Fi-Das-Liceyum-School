@@ -2,10 +2,13 @@ const Admission = require('../models/Admission');
 const Section = require('../models/Section');
 const Inquiry = require('../models/Inquiry');
 const Challan = require('../models/Challan');
+const SchoolSettings = require('../models/SchoolSettings');
 const multer = require('multer');
 const path = require('path');
 
 const fs = require('fs');
+const { sendMessage } = require('../services/whatsappService');
+const { sendSMS } = require('../services/smsService');
 
 // Multer Config
 const storage = multer.diskStorage({
@@ -49,6 +52,29 @@ exports.createAdmission = async (req, res) => {
         // Robustness: Remove empty strings for ObjectId fields to prevent casting errors
         if (admissionData.sectionId === '') delete admissionData.sectionId;
         if (admissionData.classId === '') delete admissionData.classId;
+
+        // Sibling Hierarchy Rule & Anti-Double-Dipping
+        if (admissionData.parentCNIC && admissionData.feeSnapshot?.structureName?.startsWith('Default Plan')) {
+            const siblingCount = await Admission.countDocuments({
+                parentCNIC: admissionData.parentCNIC,
+                status: 'admitted'
+            });
+
+            // Dynamic Step-Multiplier Strategy
+            const settings = await SchoolSettings.getSettings();
+            const increment = settings.billing?.siblingDiscountIncrement ?? 5; // e.g., 5% per child
+            const cap = settings.billing?.siblingDiscountCap ?? 3; // Max siblings to get incremented
+
+            // Enterprise Rule: Sibling discounts strictly cap at configured max siblings
+            // Example cap = 3. Child 1 (count 0) = 0%. Child 2 (count 1) = 5%. Child 3 (count 2) = 10%. 
+            // Child 4 (count 3) = 15%. Child 5 (count 4) = capped to count 3's logic = 15%.
+            const applicableSiblingsCount = Math.min(siblingCount, cap);
+            admissionData.siblingDiscountPercentage = applicableSiblingsCount * increment;
+
+        } else {
+            // No CNIC or on a Scholarship/Referred plan
+            admissionData.siblingDiscountPercentage = 0;
+        }
 
         const admission = new Admission(admissionData);
         await admission.save();
@@ -124,6 +150,29 @@ exports.updateAdmission = async (req, res) => {
         const currentAdmission = await Admission.findById(req.params.id);
         if (!currentAdmission) return res.status(404).json({ message: 'Admission not found' });
 
+        // Sibling Hierarchy Rule & Anti-Double-Dipping
+        const targetStructureName = updateData.feeSnapshot?.structureName || currentAdmission.feeSnapshot?.structureName;
+        const checkCnic = updateData.parentCNIC || currentAdmission.parentCNIC;
+
+        if (checkCnic && targetStructureName?.startsWith('Default Plan')) {
+            const siblingCount = await Admission.countDocuments({
+                parentCNIC: checkCnic,
+                status: 'admitted',
+                _id: { $ne: currentAdmission._id } // Don't count itself
+            });
+
+            // Dynamic Step-Multiplier Strategy
+            const settings = await SchoolSettings.getSettings();
+            const increment = settings.billing?.siblingDiscountIncrement ?? 5;
+            const cap = settings.billing?.siblingDiscountCap ?? 3;
+
+            // Enterprise Rule: Sibling discounts strictly cap at configured max siblings
+            const applicableSiblingsCount = Math.min(siblingCount, cap);
+            updateData.siblingDiscountPercentage = applicableSiblingsCount * increment;
+        } else {
+            updateData.siblingDiscountPercentage = 0;
+        }
+
         // Protection: If admitted, don't allow changing status, studentId, or classId
         if (currentAdmission.status === 'admitted') {
             delete updateData.status;
@@ -179,9 +228,22 @@ exports.finalizeAdmission = async (req, res) => {
             const challanNumber = `CHL-${new Date().getFullYear()}-${(challanCount + 1).toString().padStart(5, '0')}`;
 
             const now = new Date();
+            const dateOfMonth = now.getDate();
+
+            // Mid-Month Prorating Logic:
+            // 1st - 14th: 100% of Base Fee
+            // 15th - 24th: 50% of Base Fee
+            // 25th onwards: 0% of Base Fee for the current month
+            let tuitionFeeMultiplier = 1;
+            if (dateOfMonth >= 15 && dateOfMonth <= 24) {
+                tuitionFeeMultiplier = 0.5;
+            } else if (dateOfMonth >= 25) {
+                tuitionFeeMultiplier = 0;
+            }
+
             let billingDate = new Date();
             // If admitted after the 25th, bill for the next month to be fair
-            if (now.getDate() > 25) {
+            if (dateOfMonth >= 25) {
                 billingDate.setMonth(now.getMonth() + 1);
             }
             const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(billingDate);
@@ -196,14 +258,30 @@ exports.finalizeAdmission = async (req, res) => {
                 month: monthLabel,
                 dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
                 fees: {
-                    tuitionFee: admission.feeSnapshot?.tuitionFee || 0,
+                    tuitionFee: (admission.feeSnapshot?.tuitionFee || 0) * tuitionFeeMultiplier,
                     admissionFee: admission.feeSnapshot?.admissionFee || 0,
                     securityDeposit: admission.feeSnapshot?.securityDeposit || 0,
-                    discount: admission.discount || 0,
+                    discount: (admission.feeSnapshot?.tuitionFee || 0) * ((admission.siblingDiscountPercentage || 0) / 100),
                     otherFees: admission.feeSnapshot?.otherFees || []
                 }
             });
             await admissionChallan.save();
+
+            // 4. Enterprise Communication Triggers (Fire and Forget)
+            if (admission.phoneNumber) {
+                const message = `🎓 Welcome to Fi-Das Liceyum School!\n\nDear ${admission.parentName}, the admission for ${admission.studentName} has been processed.\n\nChallan No: ${challanNumber}\nTotal Fee: Rs. ${admissionChallan.totalAmount.toLocaleString()}\nDue Date: ${new Date(admissionChallan.dueDate).toLocaleDateString()}\n\nPlease pay the outstanding dues to complete the enrollment process. Your PDF challan is available at the admissions office.`;
+
+                // Attempt WhatsApp
+                sendMessage(admission.phoneNumber, message).catch(err => {
+                    console.log(`[Communicator] WhatsApp dispatch skipped for ${admission.studentName} (${err.message})`);
+                });
+
+                // Attempt SMS Fallback (Dual-Channel)
+                sendSMS(admission.phoneNumber, message).catch(err => {
+                    console.log(`[Communicator] SMS dispatch skipped for ${admission.studentName} (${err.message})`);
+                });
+            }
+
         } catch (chlErr) {
             // Rollback status if challan fails
             admission.status = 'draft';

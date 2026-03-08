@@ -133,6 +133,85 @@ exports.sendMessage = async (req, res) => {
     }
 };
 
+// @desc    Send bulk messages to multiple students
+// @route   POST /api/chat/blast
+// @access  Private
+exports.sendBulkBlast = async (req, res) => {
+    const { studentIds, message, channels } = req.body;
+
+    if (!studentIds || !studentIds.length || !message || !channels || !channels.length) {
+        return res.status(400).json({ message: 'studentIds, message, and channels are required' });
+    }
+
+    try {
+        const Admission = require('../models/Admission');
+        const students = await Admission.find({ _id: { $in: studentIds } });
+
+        let successCount = 0;
+        let failureCount = 0;
+        const io = req.app.get('socketio');
+
+        for (const student of students) {
+            if (!student.phoneNumber) {
+                failureCount++;
+                continue;
+            }
+
+            // Find or create conversation
+            let conversation = await Conversation.findOne({ phoneNumber: student.phoneNumber });
+            if (!conversation) {
+                conversation = await Conversation.create({
+                    phoneNumber: student.phoneNumber,
+                    linkedStudentId: student.studentId || undefined
+                });
+            }
+
+            for (const channel of channels) {
+                let sendResult = { success: false, error: null };
+                try {
+                    if (channel === 'whatsapp') {
+                        const result = await whatsappService.sendMessage(student.phoneNumber, message);
+                        sendResult = { success: true, messageId: result.messageId };
+                    } else if (channel === 'sms') {
+                        const result = await smsService.sendSMS(student.phoneNumber, message);
+                        sendResult = { success: true, messageId: result.messageId };
+                    }
+                } catch (err) {
+                    sendResult.error = err.message;
+                }
+
+                // Save message history
+                const savedMessage = await Message.create({
+                    conversationId: conversation._id,
+                    sender: 'school',
+                    content: message,
+                    channel,
+                    status: sendResult.success ? 'sent' : 'failed',
+                    externalId: sendResult.messageId
+                });
+
+                if (sendResult.success) successCount++;
+                else failureCount++;
+
+                if (io) {
+                    io.emit('new_message', { conversationId: conversation._id, message: savedMessage });
+                }
+            }
+            // Update lastMessageAt
+            conversation.lastMessageAt = Date.now();
+            await conversation.save();
+        }
+
+        res.status(200).json({
+            message: 'Bulk blast complete',
+            stats: { success: successCount, failed: failureCount, totalStudents: students.length }
+        });
+    } catch (err) {
+        console.error("Bulk blast error:", err);
+        res.status(500).json({ message: 'Failed to process bulk blast', error: err.message });
+    }
+};
+
 // @desc    Download Media
 // @route   GET /api/chat/media/:mediaId
 // @access  Private

@@ -150,15 +150,19 @@ const Admissions = () => {
 
             setSiblingInfo({ count, loading: false });
 
-            // Auto apply discount logic based on sibling count
+            // Auto apply discount logic based on sibling count (Enterprise Capped Logic)
             if (activeClass && count > 0) {
-                // Example: 10% for 2nd child (1 sibling), 20% for 3rd+ child (2+ siblings)
-                const discountPercent = count === 1 ? 0.10 : 0.20;
-                const autoDiscount = Math.round(activeClass.baseFee * discountPercent);
+                // 0%, 5%, 10% logic based on children order
+                const childOrdinal = count + 1;
+                let autoDiscountPercentage = 0;
+
+                if (childOrdinal === 1) autoDiscountPercentage = 0;
+                else if (childOrdinal === 2) autoDiscountPercentage = 5;
+                else autoDiscountPercentage = 10;
 
                 // Only override if current discount is 0 or matches previous auto-discount
-                if (editData.discount === 0 || await showConfirm('Sibling Discount', `Found ${count} sibling(s). Apply ${discountPercent * 100}% discount?`, 'info', 'Apply Discount', 'No thanks')) {
-                    setEditData(prev => ({ ...prev, discount: autoDiscount }));
+                if ((editData.siblingDiscountPercentage || 0) === 0 || await showConfirm('Sibling Discount', `Found ${count} sibling(s). This is Child #${childOrdinal}. Apply ${autoDiscountPercentage}% sibling discount?`, 'info', 'Apply Discount', 'No thanks')) {
+                    setEditData(prev => ({ ...prev, siblingDiscountPercentage: autoDiscountPercentage }));
                 }
             }
         } catch (err) {
@@ -270,8 +274,10 @@ const Admissions = () => {
                 setEditData(prev => ({
                     ...prev,
                     feeStructureId: defaultFS._id,
-                    baseFee: defaultFS.amounts.tuitionFee,
-                    feeSnapshot: defaultFS.amounts
+                    feeSnapshot: {
+                        ...defaultFS.amounts,
+                        structureName: `${defaultFS.name} - ${activeClass?.name || ''} (${defaultFS.sessionId || ''})`.trim()
+                    }
                 }));
             }
         }
@@ -686,8 +692,10 @@ const Admissions = () => {
                                                         setEditData({
                                                             ...editData,
                                                             feeStructureId: fsId,
-                                                            baseFee: selectedFS.amounts.tuitionFee,
-                                                            feeSnapshot: selectedFS.amounts
+                                                            feeSnapshot: {
+                                                                ...selectedFS.amounts,
+                                                                structureName: `${selectedFS.name} - ${activeClass?.name || ''} (${selectedFS.sessionId || ''})`.trim()
+                                                            }
                                                         });
                                                     }
                                                 }}
@@ -720,23 +728,23 @@ const Admissions = () => {
 
                                         <div className="flex justify-between items-center pt-4 border-t border-gray-100">
                                             <div className="flex-1">
-                                                <label className="text-gray-500 font-medium block">Discount / Scholarship</label>
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase">Applied to monthly tuition only</p>
+                                                <label className="text-gray-500 font-medium block">Sibling Discount %</label>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase">Applied to Default Plan only</p>
                                             </div>
                                             <div className="relative">
                                                 <input
                                                     type="number"
                                                     className="w-32 px-4 py-2 rounded-xl bg-white border border-gray-200 focus:ring-2 focus:ring-primary outline-none font-bold text-right"
-                                                    value={editData.discount || 0}
+                                                    value={editData.siblingDiscountPercentage || 0}
                                                     onChange={(e) => {
                                                         const val = parseInt(e.target.value) || 0;
-                                                        if (val > (editData.baseFee || 0)) {
-                                                            showAlert('Invalid Discount', 'Discount cannot exceed the base tuition fee.', 'warning');
+                                                        if (val > 100 || val < 0) {
+                                                            showAlert('Invalid Discount', 'Discount must be between 0% and 100%.', 'warning');
                                                         }
-                                                        setEditData({ ...editData, discount: val });
+                                                        setEditData({ ...editData, siblingDiscountPercentage: Math.max(0, Math.min(100, val)) });
                                                     }}
                                                 />
-                                                <span className="absolute left-3 top-2 text-gray-300 pointer-events-none text-sm font-bold">Rs.</span>
+                                                <span className="absolute right-3 top-2 text-gray-400 pointer-events-none text-sm font-bold">%</span>
                                             </div>
                                         </div>
 
@@ -750,15 +758,15 @@ const Admissions = () => {
                                                     (editData?.feeSnapshot?.tuitionFee || 0) +
                                                     (editData?.feeSnapshot?.admissionFee || 0) +
                                                     (editData?.feeSnapshot?.securityDeposit || 0) -
-                                                    (editData?.discount || 0)
+                                                    ((editData?.feeSnapshot?.tuitionFee || 0) * ((editData?.siblingDiscountPercentage || 0) / 100))
                                                 ).toLocaleString()}
                                             </span>
                                         </div>
                                     </div>
 
                                     <div className="mt-4 p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex justify-between items-center">
-                                        <span className="text-secondary font-bold text-sm">Recurring Monthly Fee</span>
-                                        <span className="text-xl font-black text-secondary">Rs. {Math.max(0, (editData?.feeSnapshot?.tuitionFee || 0) - (editData?.discount || 0)).toLocaleString()}</span>
+                                        <span className="text-secondary font-bold text-sm">Recurring Net Tuition Fee</span>
+                                        <span className="text-xl font-black text-secondary">Rs. {Math.max(0, (editData?.feeSnapshot?.tuitionFee || 0) - ((editData?.feeSnapshot?.tuitionFee || 0) * ((editData?.siblingDiscountPercentage || 0) / 100))).toLocaleString()}</span>
                                     </div>
                                 </section>
 
