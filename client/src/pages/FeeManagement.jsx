@@ -12,9 +12,11 @@ import {
     Layers
 } from 'lucide-react';
 import { useDialog } from '../store/DialogContext';
+import { useAuth } from '../hooks/useAuth';
 
 const FeeManagement = () => {
     const { showAlert, showConfirm } = useDialog();
+    const { user } = useAuth();
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
     const [feeStructures, setFeeStructures] = useState([]);
@@ -23,11 +25,14 @@ const FeeManagement = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 
+    const [newCategoryName, setNewCategoryName] = useState('');
+
     const [billingSettings, setBillingSettings] = useState({
         earlyBirdDiscountPercentage: 10,
         earlyBirdValidityDays: 10,
         siblingDiscountIncrement: 5,
-        siblingDiscountCap: 5
+        siblingDiscountCap: 5,
+        feePlanCategories: ['Default Plan']
     });
 
     // Generate allowed sessions (Current Year + 5 years ahead)
@@ -72,7 +77,10 @@ const FeeManagement = () => {
                     earlyBirdDiscountPercentage: b.earlyBirdDiscountPercentage ?? 10,
                     earlyBirdValidityDays: b.earlyBirdValidityDays ?? 10,
                     siblingDiscountIncrement: b.siblingDiscountIncrement ?? 5,
-                    siblingDiscountCap: b.siblingDiscountCap ?? 5
+                    siblingDiscountCap: b.siblingDiscountCap ?? 5,
+                    feePlanCategories: Array.isArray(b.feePlanCategories) && b.feePlanCategories.length > 0
+                        ? b.feePlanCategories
+                        : ['Default Plan']
                 });
             }
         } catch (err) {
@@ -118,7 +126,8 @@ const FeeManagement = () => {
                 earlyBirdDiscountPercentage: billingSettings.earlyBirdDiscountPercentage,
                 earlyBirdValidityDays: billingSettings.earlyBirdValidityDays,
                 siblingDiscountIncrement: billingSettings.siblingDiscountIncrement,
-                siblingDiscountCap: billingSettings.siblingDiscountCap
+                siblingDiscountCap: billingSettings.siblingDiscountCap,
+                feePlanCategories: billingSettings.feePlanCategories
             };
             await axios.put(`${API_URL}/api/settings/billing`, payload);
             showAlert('success', 'Global Billing Rules updated successfully');
@@ -187,75 +196,142 @@ const FeeManagement = () => {
             </div>
 
             {/* Enterprise Billing Settings Widget */}
-            <div className="bg-gradient-to-br from-primary via-secondary to-primary rounded-xl shadow-lg border border-primary/50 overflow-hidden mb-8">
-                <div className="p-6 border-b border-white/10 flex items-center justify-between">
-                    <div>
-                        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                            <Settings className="w-5 h-5 text-white/80" />
-                            Global Billing Engine Rules
-                        </h2>
-                        <p className="text-white/80 text-sm mt-1">Configure automated logic for Early Bird & Sibling deduplications.</p>
-                    </div>
-                    <button
-                        onClick={handleSettingsSubmit}
-                        disabled={isSavingSettings}
-                        className="bg-white text-primary px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-xl shadow-primary/20"
-                    >
-                        {isSavingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        Apply Rules
-                    </button>
-                </div>
-
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 bg-black/10 backdrop-blur-sm">
-                    {/* Early Bird Configuration */}
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center mb-4 border-b border-white/20 pb-2">
-                            <h3 className="text-white/90 font-semibold tracking-wide uppercase text-xs">Early Bird Settings</h3>
+            {user?.role === 'admin' && (
+                <div className="bg-gradient-to-br from-primary via-secondary to-primary rounded-xl shadow-lg border border-primary/50 overflow-hidden mb-8">
+                    <div className="p-6 border-b border-white/10 flex items-center justify-between">
+                        <div>
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                <Settings className="w-5 h-5 text-white/80" />
+                                Global Billing Engine Rules
+                            </h2>
+                            <p className="text-white/80 text-sm mt-1">Configure automated logic for Early Bird & Sibling deduplications.</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-white/80">Discount (%)</label>
-                                <div className="relative">
-                                    <input type="number" name="earlyBirdDiscountPercentage" value={billingSettings.earlyBirdDiscountPercentage} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
-                                </div>
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-white/80">Validity (Days)</label>
-                                <div className="relative">
-                                    <input type="number" name="earlyBirdValidityDays" value={billingSettings.earlyBirdValidityDays} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
-                                </div>
-                            </div>
-                        </div>
+                        <button
+                            onClick={handleSettingsSubmit}
+                            disabled={isSavingSettings}
+                            className="bg-white text-primary px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-xl shadow-primary/20"
+                        >
+                            {isSavingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            Apply Rules
+                        </button>
                     </div>
 
-                    {/* Sibling Scaling Configuration */}
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center mb-4 border-b border-white/20 pb-2">
-                            <h3 className="text-white/90 font-semibold tracking-wide uppercase text-xs">Sibling Hierarchy Discounts</h3>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-white/80">Discount per Sibling (%)</label>
-                                <input type="number" name="siblingDiscountIncrement" value={billingSettings.siblingDiscountIncrement} min={0} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 bg-black/10 backdrop-blur-sm">
+                        {/* Early Bird Configuration */}
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center mb-4 border-b border-white/20 pb-2">
+                                <h3 className="text-white/90 font-semibold tracking-wide uppercase text-xs">Early Bird Settings</h3>
                             </div>
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-white/80">Max Siblings Setup (Cap)</label>
-                                <input type="number" name="siblingDiscountCap" value={billingSettings.siblingDiscountCap} min={0} max={15} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-white/80">Discount (%)</label>
+                                    <div className="relative">
+                                        <input type="number" name="earlyBirdDiscountPercentage" value={billingSettings.earlyBirdDiscountPercentage} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-white/80">Validity (Days)</label>
+                                    <div className="relative">
+                                        <input type="number" name="earlyBirdValidityDays" value={billingSettings.earlyBirdValidityDays} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div className="mt-3 p-3 bg-black/20 rounded-md border border-white/5">
-                            <p className="text-xs font-mono text-white/70 leading-relaxed">
-                                <span className="text-white/40 block mb-1 uppercase tracking-wider text-[10px]">Mathematical Preview</span>
-                                Child 1: Base (0% off)<br />
-                                Child 2: {billingSettings.siblingDiscountIncrement}% off<br />
-                                Child 3: {billingSettings.siblingDiscountIncrement * 2}% off<br />
-                                {billingSettings.siblingDiscountCap > 3 && `...up to Child ${billingSettings.siblingDiscountCap + 1} (${billingSettings.siblingDiscountIncrement * billingSettings.siblingDiscountCap}% off)`}
-                                {billingSettings.siblingDiscountCap <= 3 && `(Caps at Child ${billingSettings.siblingDiscountCap + 1} with ${billingSettings.siblingDiscountIncrement * billingSettings.siblingDiscountCap}% off)`}
-                            </p>
+
+                        {/* Sibling Scaling Configuration */}
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center mb-4 border-b border-white/20 pb-2">
+                                <h3 className="text-white/90 font-semibold tracking-wide uppercase text-xs">Sibling Hierarchy Discounts</h3>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-white/80">Discount per Sibling (%)</label>
+                                    <input type="number" name="siblingDiscountIncrement" value={billingSettings.siblingDiscountIncrement} min={0} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-white/80">Max Siblings Setup (Cap)</label>
+                                    <input type="number" name="siblingDiscountCap" value={billingSettings.siblingDiscountCap} min={0} max={15} onChange={handleSettingsChange} className="w-full bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none" />
+                                </div>
+                            </div>
+                            <div className="mt-3 p-3 bg-black/20 rounded-md border border-white/5">
+                                <p className="text-xs font-mono text-white/70 leading-relaxed">
+                                    <span className="text-white/40 block mb-1 uppercase tracking-wider text-[10px]">Mathematical Preview</span>
+                                    Child 1: Base (0% off)<br />
+                                    Child 2: {billingSettings.siblingDiscountIncrement}% off<br />
+                                    Child 3: {billingSettings.siblingDiscountIncrement * 2}% off<br />
+                                    {billingSettings.siblingDiscountCap > 3 && `...up to Child ${billingSettings.siblingDiscountCap + 1} (${billingSettings.siblingDiscountIncrement * billingSettings.siblingDiscountCap}% off)`}
+                                    {billingSettings.siblingDiscountCap <= 3 && `(Caps at Child ${billingSettings.siblingDiscountCap + 1} with ${billingSettings.siblingDiscountIncrement * billingSettings.siblingDiscountCap}% off)`}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Fee Categories Dictionary */}
+                        <div className="space-y-4 md:col-span-2 border-t border-white/10 pt-6">
+                            <div className="flex justify-between items-center mb-4 border-b border-white/20 pb-2">
+                                <h3 className="text-white/90 font-semibold tracking-wide uppercase text-xs">Fee Plan Categories Dictionary</h3>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mb-3">
+                                {billingSettings.feePlanCategories.map((cat, idx) => (
+                                    <div key={idx} className="flex items-center gap-1 bg-white/10 px-3 py-1.5 rounded-full border border-white/20 text-sm text-white">
+                                        <span>{cat}</span>
+                                        {billingSettings.feePlanCategories.length > 1 && cat !== 'Default Plan' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setBillingSettings(prev => ({
+                                                        ...prev,
+                                                        feePlanCategories: prev.feePlanCategories.filter((_, i) => i !== idx)
+                                                    }));
+                                                }}
+                                                className="p-1 hover:bg-white/20 rounded-full transition-colors ml-1"
+                                            >
+                                                <Trash2 className="w-3 h-3 text-white/70 hover:text-red-400" />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex gap-2 max-w-sm">
+                                <input
+                                    type="text"
+                                    placeholder="Add new plan name..."
+                                    value={newCategoryName}
+                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                    className="flex-1 bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none placeholder-white/40"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            if (newCategoryName.trim() && !billingSettings.feePlanCategories.includes(newCategoryName.trim())) {
+                                                setBillingSettings(prev => ({
+                                                    ...prev,
+                                                    feePlanCategories: [...prev.feePlanCategories, newCategoryName.trim()]
+                                                }));
+                                                setNewCategoryName('');
+                                            }
+                                        }
+                                    }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (newCategoryName.trim() && !billingSettings.feePlanCategories.includes(newCategoryName.trim())) {
+                                            setBillingSettings(prev => ({
+                                                ...prev,
+                                                feePlanCategories: [...prev.feePlanCategories, newCategoryName.trim()]
+                                            }));
+                                            setNewCategoryName('');
+                                        }
+                                    }}
+                                    className="bg-white/20 hover:bg-white/30 text-white px-4 rounded-md font-medium text-sm transition-colors"
+                                >
+                                    Add
+                                </button>
+                            </div>
+                            <p className="text-[10px] text-white/50 uppercase tracking-wider mt-2">These act as the official dropdown options when creating Fee Structures.</p>
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                 {/* Creation Form */}
@@ -271,15 +347,14 @@ const FeeManagement = () => {
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-foreground">Structure Name</label>
                                 <select
-                                    className="w-full px-3 py-2 bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary/20"
+                                    className="w-full px-3 py-2 bg-white border border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-md outline-none"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     required
                                 >
-                                    <option value="Default Plan">Default Plan</option>
-                                    <option value="Referred Plan">Referred Plan</option>
-                                    <option value="Scholarship Plan 25%">Scholarship Plan 25%</option>
-                                    <option value="Scholarship Plan 50%">Scholarship Plan 50%</option>
+                                    {billingSettings.feePlanCategories?.map((cat, idx) => (
+                                        <option key={idx} value={cat}>{cat}</option>
+                                    ))}
                                 </select>
                             </div>
 

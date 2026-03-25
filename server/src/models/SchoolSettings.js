@@ -47,6 +47,10 @@ const schoolSettingsSchema = new mongoose.Schema({
 
     // Enterprise Billing Rules
     billing: {
+        feePlanCategories: {
+            type: [String],
+            default: ['Default Plan']
+        },
         earlyBirdDiscountPercentage: {
             type: Number,
             default: 10

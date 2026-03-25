@@ -1,4 +1,4 @@
-import React, { createContext, useState } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -15,6 +15,23 @@ export const AuthProvider = ({ children }) => {
         return null;
     });
     const loading = false;
+
+    useEffect(() => {
+        const interceptor = axios.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                if (error.response?.status === 401) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    delete axios.defaults.headers.common['x-auth-token'];
+                    setUser(null);
+                    window.location.href = '/login';
+                }
+                return Promise.reject(error);
+            }
+        );
+        return () => axios.interceptors.response.eject(interceptor);
+    }, []);
 
     const login = async (email, password) => {
         try {

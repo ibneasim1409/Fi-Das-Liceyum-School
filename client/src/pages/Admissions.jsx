@@ -485,9 +485,62 @@ const Admissions = () => {
                                     <p className="text-[10px] font-bold text-gray-400 uppercase mt-4 tracking-wider">Student Profile Picture</p>
                                 </div>
 
-                                {/* Basic Info Section */}
+                                {/* Assignment Section */}
                                 <section>
                                     <h3 className="text-sm font-bold text-primary uppercase tracking-widest mb-4 flex items-center">
+                                        <span className="w-8 h-[2px] bg-primary mr-3"></span> Academic Assignment
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="p-4 bg-gray-50 rounded-2xl flex items-center">
+                                            <div className="p-2 bg-white rounded-lg mr-3 shadow-sm">
+                                                <GraduationCap className="text-primary" />
+                                            </div>
+                                            <div className="flex-1">
+                                                {isNewForm ? (
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">Select Class</label>
+                                                        <select
+                                                            className="w-full bg-transparent font-bold text-gray-800 outline-none appearance-none cursor-pointer"
+                                                            value={typeof editData.classId === 'object' ? editData.classId?._id : (editData.classId || '')}
+                                                            onChange={(e) => setEditData({ ...editData, classId: e.target.value, sectionId: '' })}
+                                                            required
+                                                        >
+                                                            <option value="" disabled>Choose a class</option>
+                                                            {classes.map(c => (
+                                                                <option key={c._id} value={c._id}>{c.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">Class</label>
+                                                        <p className="font-bold text-gray-800">{activeClass?.name || 'Not Assigned'}</p>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-gray-600 ml-1 flex items-center">
+                                                <Users size={14} className="mr-1 text-primary" /> Assign Section
+                                            </label>
+                                            <select
+                                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none bg-white appearance-none"
+                                                value={editData.sectionId || ''}
+                                                onChange={(e) => setEditData({ ...editData, sectionId: e.target.value })}
+                                                disabled={selectedAdmission?.status === 'admitted' || selectedAdmission?.status === 'pending_admission'}
+                                            >
+                                                <option value="">Select Section</option>
+                                                {activeClass?.sections?.map(s => (
+                                                    <option key={s._id} value={s._id}>{s.name} (Cap: {s.capacity})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/* Basic Info Section */}
+                                <section>
+                                    <h3 className="text-sm font-bold text-primary uppercase tracking-widest mb-4 flex items-center mt-6">
                                         <span className="w-8 h-[2px] bg-primary mr-3"></span> Lead Information
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -621,59 +674,6 @@ const Admissions = () => {
                                     </div>
                                 </section>
 
-                                {/* Assignment Section */}
-                                <section>
-                                    <h3 className="text-sm font-bold text-primary uppercase tracking-widest mb-4 flex items-center">
-                                        <span className="w-8 h-[2px] bg-primary mr-3"></span> Academic Assignment
-                                    </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="p-4 bg-gray-50 rounded-2xl flex items-center">
-                                            <div className="p-2 bg-white rounded-lg mr-3 shadow-sm">
-                                                <GraduationCap className="text-primary" />
-                                            </div>
-                                            <div className="flex-1">
-                                                {isNewForm ? (
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">Select Class</label>
-                                                        <select
-                                                            className="w-full bg-transparent font-bold text-gray-800 outline-none appearance-none cursor-pointer"
-                                                            value={typeof editData.classId === 'object' ? editData.classId?._id : (editData.classId || '')}
-                                                            onChange={(e) => setEditData({ ...editData, classId: e.target.value, sectionId: '' })}
-                                                            required
-                                                        >
-                                                            <option value="" disabled>Choose a class</option>
-                                                            {classes.map(c => (
-                                                                <option key={c._id} value={c._id}>{c.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase">Class</label>
-                                                        <p className="font-bold text-gray-800">{activeClass?.name || 'Not Assigned'}</p>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-xs font-bold text-gray-600 ml-1 flex items-center">
-                                                <Users size={14} className="mr-1 text-primary" /> Assign Section
-                                            </label>
-                                            <select
-                                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none bg-white appearance-none"
-                                                value={editData.sectionId || ''}
-                                                onChange={(e) => setEditData({ ...editData, sectionId: e.target.value })}
-                                                disabled={selectedAdmission?.status === 'admitted' || selectedAdmission?.status === 'pending_admission'}
-                                            >
-                                                <option value="">Select Section</option>
-                                                {activeClass?.sections?.map(s => (
-                                                    <option key={s._id} value={s._id}>{s.name} (Cap: {s.capacity})</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-                                </section>
-
                                 {/* Financial Section */}
                                 <section>
                                     <h3 className="text-sm font-bold text-primary uppercase tracking-widest mb-4 flex items-center">
@@ -727,22 +727,19 @@ const Admissions = () => {
                                         </div>
 
                                         <div className="flex justify-between items-center pt-4 border-t border-gray-100">
-                                            <div className="flex-1">
-                                                <label className="text-gray-500 font-medium block">Sibling Discount %</label>
+                                            <div className="flex-1 flex flex-col items-start gap-1">
+                                                <label className="text-gray-500 font-medium flex items-center gap-2">
+                                                    Sibling Discount %
+                                                    <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Auto-Calculated</span>
+                                                </label>
                                                 <p className="text-[10px] text-gray-400 font-bold uppercase">Applied to Default Plan only</p>
                                             </div>
                                             <div className="relative">
                                                 <input
                                                     type="number"
-                                                    className="w-32 px-4 py-2 rounded-xl bg-white border border-gray-200 focus:ring-2 focus:ring-primary outline-none font-bold text-right"
+                                                    disabled
+                                                    className="w-32 px-4 py-2 rounded-xl bg-gray-50 border border-gray-100 text-gray-500 font-bold text-right cursor-not-allowed"
                                                     value={editData.siblingDiscountPercentage || 0}
-                                                    onChange={(e) => {
-                                                        const val = parseInt(e.target.value) || 0;
-                                                        if (val > 100 || val < 0) {
-                                                            showAlert('Invalid Discount', 'Discount must be between 0% and 100%.', 'warning');
-                                                        }
-                                                        setEditData({ ...editData, siblingDiscountPercentage: Math.max(0, Math.min(100, val)) });
-                                                    }}
                                                 />
                                                 <span className="absolute right-3 top-2 text-gray-400 pointer-events-none text-sm font-bold">%</span>
                                             </div>
