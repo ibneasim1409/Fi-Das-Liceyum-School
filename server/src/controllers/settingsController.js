@@ -73,8 +73,7 @@ exports.updateBillingSettings = async (req, res) => {
         earlyBirdDiscountPercentage,
         earlyBirdValidityDays,
         siblingDiscountIncrement,
-        siblingDiscountCap,
-        feePlanCategories
+        siblingDiscountCap
     } = req.body;
 
     try {
@@ -84,18 +83,6 @@ exports.updateBillingSettings = async (req, res) => {
         if (earlyBirdValidityDays !== undefined) settings.billing.earlyBirdValidityDays = Number(earlyBirdValidityDays);
         if (siblingDiscountCap !== undefined) settings.billing.siblingDiscountCap = Number(siblingDiscountCap);
         if (siblingDiscountIncrement !== undefined) settings.billing.siblingDiscountIncrement = Number(siblingDiscountIncrement);
-        if (feePlanCategories !== undefined && Array.isArray(feePlanCategories)) {
-            // Ensure unique names and filter out completely empty entries
-            const uniqueCategories = [...new Set(feePlanCategories.map(c => c.trim()).filter(c => c))];
-            if (uniqueCategories.length === 0) {
-                return res.status(400).json({ message: 'At least one fee plan category must be defined.' });
-            }
-            // Absolute Lock: Default Plan must always exist in the dictionary
-            if (!uniqueCategories.includes('Default Plan')) {
-                uniqueCategories.unshift('Default Plan');
-            }
-            settings.billing.feePlanCategories = uniqueCategories;
-        }
 
         if (siblingDiscountCap !== undefined) {
             const capVal = Number(siblingDiscountCap);

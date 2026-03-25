@@ -26,13 +26,13 @@ const FeeManagement = () => {
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 
     const [newCategoryName, setNewCategoryName] = useState('');
+    const [feePlanCategories, setFeePlanCategories] = useState(['Default Plan']);
 
     const [billingSettings, setBillingSettings] = useState({
         earlyBirdDiscountPercentage: 10,
         earlyBirdValidityDays: 10,
         siblingDiscountIncrement: 5,
-        siblingDiscountCap: 5,
-        feePlanCategories: ['Default Plan']
+        siblingDiscountCap: 5
     });
 
     // Generate allowed sessions (Current Year + 5 years ahead)
@@ -63,13 +63,20 @@ const FeeManagement = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [feeRes, classRes, settingsRes] = await Promise.all([
+            const [feeRes, classRes, settingsRes, listRes] = await Promise.all([
                 axios.get(`${API_URL}/api/fees`),
                 axios.get(`${API_URL}/api/classes`),
-                axios.get(`${API_URL}/api/settings`)
+                axios.get(`${API_URL}/api/settings`),
+                axios.get(`${API_URL}/api/lists/feePlanCategories`).catch(() => ({ data: { items: ['Default Plan'] } }))
             ]);
             setFeeStructures(feeRes.data);
             setClasses(classRes.data);
+
+            if (listRes.data && listRes.data.items && listRes.data.items.length > 0) {
+                setFeePlanCategories(listRes.data.items);
+            } else {
+                setFeePlanCategories(['Default Plan']);
+            }
 
             if (settingsRes.data?.billing) {
                 const b = settingsRes.data.billing;
@@ -77,10 +84,7 @@ const FeeManagement = () => {
                     earlyBirdDiscountPercentage: b.earlyBirdDiscountPercentage ?? 10,
                     earlyBirdValidityDays: b.earlyBirdValidityDays ?? 10,
                     siblingDiscountIncrement: b.siblingDiscountIncrement ?? 5,
-                    siblingDiscountCap: b.siblingDiscountCap ?? 5,
-                    feePlanCategories: Array.isArray(b.feePlanCategories) && b.feePlanCategories.length > 0
-                        ? b.feePlanCategories
-                        : ['Default Plan']
+                    siblingDiscountCap: b.siblingDiscountCap ?? 5
                 });
             }
         } catch (err) {
@@ -126,8 +130,7 @@ const FeeManagement = () => {
                 earlyBirdDiscountPercentage: billingSettings.earlyBirdDiscountPercentage,
                 earlyBirdValidityDays: billingSettings.earlyBirdValidityDays,
                 siblingDiscountIncrement: billingSettings.siblingDiscountIncrement,
-                siblingDiscountCap: billingSettings.siblingDiscountCap,
-                feePlanCategories: billingSettings.feePlanCategories
+                siblingDiscountCap: billingSettings.siblingDiscountCap
             };
             await axios.put(`${API_URL}/api/settings/billing`, payload);
             showAlert('success', 'Global Billing Rules updated successfully');
@@ -136,6 +139,35 @@ const FeeManagement = () => {
             showAlert('error', 'Error updating billing settings');
         } finally {
             setIsSavingSettings(false);
+        }
+    };
+
+    const handleAddCategory = async () => {
+        const name = newCategoryName.trim();
+        if (!name || feePlanCategories.includes(name)) return;
+
+        const newCategories = [...feePlanCategories, name];
+        try {
+            await axios.put(`${API_URL}/api/lists/feePlanCategories`, { items: newCategories });
+            setFeePlanCategories(newCategories);
+            setNewCategoryName('');
+            showAlert('success', 'Category added successfully');
+        } catch (err) {
+            showAlert('error', err.response?.data?.message || 'Failed to add category');
+        }
+    };
+
+    const handleDeleteCategory = async (idx) => {
+        const catToDelete = feePlanCategories[idx];
+        if (catToDelete === 'Default Plan') return;
+
+        const newCategories = feePlanCategories.filter((_, i) => i !== idx);
+        try {
+            await axios.put(`${API_URL}/api/lists/feePlanCategories`, { items: newCategories });
+            setFeePlanCategories(newCategories);
+            showAlert('success', 'Category removed successfully');
+        } catch (err) {
+            showAlert('error', err.response?.data?.message || 'Failed to remove category');
         }
     };
 
@@ -265,69 +297,61 @@ const FeeManagement = () => {
                             </div>
                         </div>
 
-                        {/* Fee Categories Dictionary */}
-                        <div className="space-y-4 md:col-span-2 border-t border-white/10 pt-6">
-                            <div className="flex justify-between items-center mb-4 border-b border-white/20 pb-2">
-                                <h3 className="text-white/90 font-semibold tracking-wide uppercase text-xs">Fee Plan Categories Dictionary</h3>
-                            </div>
-                            <div className="flex flex-wrap gap-2 mb-3">
-                                {billingSettings.feePlanCategories.map((cat, idx) => (
-                                    <div key={idx} className="flex items-center gap-1 bg-white/10 px-3 py-1.5 rounded-full border border-white/20 text-sm text-white">
-                                        <span>{cat}</span>
-                                        {billingSettings.feePlanCategories.length > 1 && cat !== 'Default Plan' && (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setBillingSettings(prev => ({
-                                                        ...prev,
-                                                        feePlanCategories: prev.feePlanCategories.filter((_, i) => i !== idx)
-                                                    }));
-                                                }}
-                                                className="p-1 hover:bg-white/20 rounded-full transition-colors ml-1"
-                                            >
-                                                <Trash2 className="w-3 h-3 text-white/70 hover:text-red-400" />
-                                            </button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="flex gap-2 max-w-sm">
-                                <input
-                                    type="text"
-                                    placeholder="Add new plan name..."
-                                    value={newCategoryName}
-                                    onChange={(e) => setNewCategoryName(e.target.value)}
-                                    className="flex-1 bg-white/10 border border-white/30 text-white rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-white/50 focus:outline-none placeholder-white/40"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            if (newCategoryName.trim() && !billingSettings.feePlanCategories.includes(newCategoryName.trim())) {
-                                                setBillingSettings(prev => ({
-                                                    ...prev,
-                                                    feePlanCategories: [...prev.feePlanCategories, newCategoryName.trim()]
-                                                }));
-                                                setNewCategoryName('');
-                                            }
-                                        }
-                                    }}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (newCategoryName.trim() && !billingSettings.feePlanCategories.includes(newCategoryName.trim())) {
-                                            setBillingSettings(prev => ({
-                                                ...prev,
-                                                feePlanCategories: [...prev.feePlanCategories, newCategoryName.trim()]
-                                            }));
-                                            setNewCategoryName('');
-                                        }
-                                    }}
-                                    className="bg-white/20 hover:bg-white/30 text-white px-4 rounded-md font-medium text-sm transition-colors"
-                                >
-                                    Add
-                                </button>
-                            </div>
-                            <p className="text-[10px] text-white/50 uppercase tracking-wider mt-2">These act as the official dropdown options when creating Fee Structures.</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Decoupled Fee Plan Categories Editor - Available to Admins */}
+            {user?.role === 'admin' && (
+                <div className="bg-white rounded-xl shadow-lg border border-border overflow-hidden mb-8">
+                    <div className="p-6 border-b border-border bg-gray-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                                <Settings className="w-5 h-5 text-primary" />
+                                Fee Plan Categories Dictionary
+                            </h2>
+                            <p className="text-muted-foreground text-sm mt-1">Manage global categorical dropdown options independent of billing logic.</p>
+                        </div>
+                    </div>
+                    <div className="p-6">
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            {feePlanCategories.map((cat, idx) => (
+                                <div key={idx} className="flex items-center gap-1 bg-primary/10 px-3 py-1.5 rounded-full border border-primary/20 text-sm text-primary font-medium">
+                                    <span>{cat}</span>
+                                    {feePlanCategories.length > 1 && cat !== 'Default Plan' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteCategory(idx)}
+                                            className="p-1 hover:bg-primary/20 rounded-full transition-colors ml-1"
+                                            title="Delete Category"
+                                        >
+                                            <Trash2 className="w-3 h-3 text-primary/70 hover:text-red-500" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex gap-2 max-w-sm">
+                            <input
+                                type="text"
+                                placeholder="Add new plan name..."
+                                value={newCategoryName}
+                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                className="flex-1 bg-white border border-gray-300 text-foreground rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary/50 focus:outline-none"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleAddCategory();
+                                    }
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={handleAddCategory}
+                                className="bg-primary hover:bg-primary/90 text-white px-4 rounded-md font-medium text-sm transition-colors shadow-sm"
+                            >
+                                Add
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -352,7 +376,7 @@ const FeeManagement = () => {
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     required
                                 >
-                                    {billingSettings.feePlanCategories?.map((cat, idx) => (
+                                    {feePlanCategories.map((cat, idx) => (
                                         <option key={idx} value={cat}>{cat}</option>
                                     ))}
                                 </select>

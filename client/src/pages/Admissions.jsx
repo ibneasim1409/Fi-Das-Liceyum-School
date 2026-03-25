@@ -150,19 +150,23 @@ const Admissions = () => {
 
             setSiblingInfo({ count, loading: false });
 
+            const autoDiscountPercentage = res.data.discountPercentage || 0;
+
             // Auto apply discount logic based on sibling count (Enterprise Capped Logic)
             if (activeClass && count > 0) {
-                // 0%, 5%, 10% logic based on children order
                 const childOrdinal = count + 1;
-                let autoDiscountPercentage = 0;
 
-                if (childOrdinal === 1) autoDiscountPercentage = 0;
-                else if (childOrdinal === 2) autoDiscountPercentage = 5;
-                else autoDiscountPercentage = 10;
-
-                // Only override if current discount is 0 or matches previous auto-discount
-                if ((editData.siblingDiscountPercentage || 0) === 0 || await showConfirm('Sibling Discount', `Found ${count} sibling(s). This is Child #${childOrdinal}. Apply ${autoDiscountPercentage}% sibling discount?`, 'info', 'Apply Discount', 'No thanks')) {
-                    setEditData(prev => ({ ...prev, siblingDiscountPercentage: autoDiscountPercentage }));
+                // Apply discount to eligible pool, but only activate it if fee plan is Default
+                if ((editData.eligibleDiscountPercentage || 0) === 0 || await showConfirm('Sibling Discount', `Found ${count} sibling(s). This is Child #${childOrdinal}. Apply ${autoDiscountPercentage}% sibling discount?`, 'info', 'Apply Discount', 'No thanks')) {
+                    setEditData(prev => {
+                        const fs = feeStructures.find(f => f._id === prev.feeStructureId);
+                        const isDefault = fs?.name === 'Default Plan';
+                        return {
+                            ...prev,
+                            eligibleDiscountPercentage: autoDiscountPercentage,
+                            siblingDiscountPercentage: isDefault ? autoDiscountPercentage : 0
+                        };
+                    });
                 }
             }
         } catch (err) {
@@ -490,7 +494,7 @@ const Admissions = () => {
                                     <h3 className="text-sm font-bold text-primary uppercase tracking-widest mb-4 flex items-center">
                                         <span className="w-8 h-[2px] bg-primary mr-3"></span> Academic Assignment
                                     </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                         <div className="p-4 bg-gray-50 rounded-2xl flex items-center">
                                             <div className="p-2 bg-white rounded-lg mr-3 shadow-sm">
                                                 <GraduationCap className="text-primary" />
@@ -533,6 +537,40 @@ const Admissions = () => {
                                                 {activeClass?.sections?.map(s => (
                                                     <option key={s._id} value={s._id}>{s.name} (Cap: {s.capacity})</option>
                                                 ))}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-gray-600 ml-1 flex items-center">
+                                                <CreditCard size={14} className="mr-1 text-primary" /> Fee Plan
+                                            </label>
+                                            <select
+                                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none bg-white font-bold"
+                                                value={editData.feeStructureId || ''}
+                                                onChange={(e) => {
+                                                    const fsId = e.target.value;
+                                                    const selectedFS = feeStructures.find(f => f._id === fsId);
+                                                    if (selectedFS) {
+                                                        const isDefaultPlan = selectedFS.name === 'Default Plan';
+                                                        setEditData({
+                                                            ...editData,
+                                                            feeStructureId: fsId,
+                                                            feeSnapshot: {
+                                                                ...selectedFS.amounts,
+                                                                structureName: `${selectedFS.name} - ${activeClass?.name || ''} (${selectedFS.sessionId || ''})`.trim()
+                                                            },
+                                                            siblingDiscountPercentage: isDefaultPlan ? (editData.eligibleDiscountPercentage || 0) : 0
+                                                        });
+                                                    }
+                                                }}
+                                                disabled={selectedAdmission?.status === 'admitted'}
+                                            >
+                                                <option value="">Select Fee Plan</option>
+                                                {feeStructures
+                                                    .filter(fs => (fs.classId?._id || fs.classId) === (editData.classId?._id || editData.classId))
+                                                    .map(fs => (
+                                                        <option key={fs._id} value={fs._id}>{fs.name} ({fs.sessionId})</option>
+                                                    ))
+                                                }
                                             </select>
                                         </div>
                                     </div>
@@ -680,36 +718,7 @@ const Admissions = () => {
                                         <span className="w-8 h-[2px] bg-primary mr-3"></span> Fee Management
                                     </h3>
                                     <div className="bg-gray-50 p-6 rounded-3xl space-y-4">
-                                        <div className="space-y-2 mb-4">
-                                            <label className="text-xs font-bold text-gray-600 ml-1">Fee Plan (Version)</label>
-                                            <select
-                                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none bg-white font-bold"
-                                                value={editData.feeStructureId || ''}
-                                                onChange={(e) => {
-                                                    const fsId = e.target.value;
-                                                    const selectedFS = feeStructures.find(f => f._id === fsId);
-                                                    if (selectedFS) {
-                                                        setEditData({
-                                                            ...editData,
-                                                            feeStructureId: fsId,
-                                                            feeSnapshot: {
-                                                                ...selectedFS.amounts,
-                                                                structureName: `${selectedFS.name} - ${activeClass?.name || ''} (${selectedFS.sessionId || ''})`.trim()
-                                                            }
-                                                        });
-                                                    }
-                                                }}
-                                                disabled={selectedAdmission?.status === 'admitted'}
-                                            >
-                                                <option value="">Select Fee Plan</option>
-                                                {feeStructures
-                                                    .filter(fs => (fs.classId?._id || fs.classId) === (editData.classId?._id || editData.classId))
-                                                    .map(fs => (
-                                                        <option key={fs._id} value={fs._id}>{fs.name} ({fs.sessionId})</option>
-                                                    ))
-                                                }
-                                            </select>
-                                        </div>
+
 
                                         <div className="flex justify-between items-center pt-2">
                                             <span className="text-gray-500 font-medium">Monthly Tuition (Active Plan)</span>

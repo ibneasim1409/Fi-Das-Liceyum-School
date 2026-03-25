@@ -403,7 +403,18 @@ exports.checkSiblings = async (req, res) => {
         }
 
         const count = await Admission.countDocuments(query);
-        res.status(200).json({ siblingCount: count });
+
+        // Compute Dynamic Multiplier Based on DB Billing Settings
+        const settings = await SchoolSettings.getSettings();
+        const increment = settings.billing?.siblingDiscountIncrement ?? 5;
+        const cap = settings.billing?.siblingDiscountCap ?? 3;
+        const applicableSiblingsCount = Math.min(count, cap);
+        const calculatedDiscount = applicableSiblingsCount * increment;
+
+        res.status(200).json({
+            siblingCount: count,
+            discountPercentage: calculatedDiscount
+        });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err.message });
     }

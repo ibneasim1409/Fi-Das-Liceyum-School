@@ -386,17 +386,34 @@ exports.processWebhook = async (req, res) => {
 
             try {
                 // Permanently save the delivery status to the database so it survives page reloads
-                await Message.findOneAndUpdate(
+                let updatedMsg = await Message.findOneAndUpdate(
                     { externalId: statusUpdate.id },
                     { status: statusUpdate.status }
                 );
 
                 const io = req.app.get('socketio');
-                if (io) {
-                    io.emit('message_status_update', {
-                        externalId: statusUpdate.id,
-                        status: statusUpdate.status // 'sent', 'delivered', 'read'
-                    });
+
+                // Race Condition Protection: If Meta fires the receipt faster than our DB can save the text
+                if (!updatedMsg) {
+                    setTimeout(async () => {
+                        await Message.findOneAndUpdate(
+                            { externalId: statusUpdate.id },
+                            { status: statusUpdate.status }
+                        );
+                        if (io) {
+                            io.emit('message_status_update', {
+                                externalId: statusUpdate.id,
+                                status: statusUpdate.status // 'sent', 'delivered', 'read'
+                            });
+                        }
+                    }, 1500); // Wait 1.5s then aggressively patch the missed timestamp securely
+                } else {
+                    if (io) {
+                        io.emit('message_status_update', {
+                            externalId: statusUpdate.id,
+                            status: statusUpdate.status // 'sent', 'delivered', 'read'
+                        });
+                    }
                 }
             } catch (err) {
                 console.error("Error updating message status in DB:", err);
@@ -422,9 +439,9 @@ exports.smsWebhook = async (req, res) => {
 
         // Reverse format international +92 back to local 03XX format
         if (from.startsWith('+923') && from.length === 13) {
-            from = '03' + from.substring(3);
+            from = '0' + from.substring(3);
         } else if (from.startsWith('923') && from.length === 12) {
-            from = '03' + from.substring(2);
+            from = '0' + from.substring(2);
         }
 
         console.log(`Incoming Textbee SMS from ${from}: ${msg_body}`);

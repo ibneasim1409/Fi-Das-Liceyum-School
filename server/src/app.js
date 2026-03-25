@@ -4,6 +4,7 @@ const path = require('path');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
+const mongoose = require('mongoose');
 const { initCronJobs } = require('./cronJobs');
 
 dotenv.config();
@@ -31,6 +32,17 @@ app.use(express.urlencoded({ extended: true }));
 // Static Files
 app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads')));
 
+// Database Connection Check Middleware
+app.use((req, res, next) => {
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({
+            message: 'Service Unavailable: Database connection is missing. Please start the database.',
+            needsSetup: false
+        });
+    }
+    next();
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/classes', classRoutes);
@@ -41,6 +53,7 @@ app.use('/api/challans', require('./routes/challanRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/chat', require('./routes/chatRoutes'));
 app.use('/api/settings', require('./routes/settingsRoutes'));
+app.use('/api/lists', require('./routes/customListRoutes'));
 
 // Basic Route
 app.get('/', (req, res) => {
