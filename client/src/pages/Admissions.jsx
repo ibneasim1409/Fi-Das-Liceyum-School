@@ -731,6 +731,11 @@ const Admissions = () => {
                                         </div>
 
                                         <div className="flex justify-between items-center">
+                                            <span className="text-gray-500 font-medium">Annual Expenses</span>
+                                            <span className="font-mono font-bold text-gray-700">Rs. {editData?.feeSnapshot?.annualExpenses?.toLocaleString() || 0}</span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center">
                                             <span className="text-gray-500 font-medium">Security Deposit (Refundable)</span>
                                             <span className="font-mono font-bold text-gray-700">Rs. {editData?.feeSnapshot?.securityDeposit?.toLocaleString() || 0}</span>
                                         </div>
@@ -763,6 +768,7 @@ const Admissions = () => {
                                                 Rs. {(
                                                     (editData?.feeSnapshot?.tuitionFee || 0) +
                                                     (editData?.feeSnapshot?.admissionFee || 0) +
+                                                    (editData?.feeSnapshot?.annualExpenses || 0) +
                                                     (editData?.feeSnapshot?.securityDeposit || 0) -
                                                     ((editData?.feeSnapshot?.tuitionFee || 0) * ((editData?.siblingDiscountPercentage || 0) / 100))
                                                 ).toLocaleString()}

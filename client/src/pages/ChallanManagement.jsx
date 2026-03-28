@@ -78,7 +78,7 @@ const ChallanManagement = () => {
             const res = await axios.post(`${API_URL}/api/challans/generate-monthly`, { month: monthInput });
             showAlert(
                 'Generation Complete',
-                `Successfully generated ${res.data.generatedCount} challans. ${res.data.skippedCount} were skipped as they already exist.`,
+                `Successfully generated ${res.data.generatedCount} challans. ${res.data.skippedCount} were skipped as they already exist. ${res.data.annualExpensesBilledCount > 0 ? `(\n\n✨ Note: 12-Month Anniversary! Auto-billed Annual Expenses for ${res.data.annualExpensesBilledCount} selected students).` : ''}`,
                 'success'
             );
             fetchChallans();

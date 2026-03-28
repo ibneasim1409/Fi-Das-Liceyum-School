@@ -27,6 +27,11 @@ const feeStructureSchema = new mongoose.Schema({
             default: 0,
             min: 0
         },
+        annualExpenses: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
         securityDeposit: {
             type: Number,
             default: 0,

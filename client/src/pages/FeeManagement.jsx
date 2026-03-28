@@ -50,6 +50,7 @@ const FeeManagement = () => {
         amounts: {
             tuitionFee: 0,
             admissionFee: 0,
+            annualExpenses: 0,
             securityDeposit: 0,
             otherFees: []
         },
@@ -184,7 +185,7 @@ const FeeManagement = () => {
                 name: 'Default Plan',
                 sessionId: sessions[0],
                 classId: '',
-                amounts: { tuitionFee: 0, admissionFee: 0, securityDeposit: 0, otherFees: [] },
+                amounts: { tuitionFee: 0, admissionFee: 0, annualExpenses: 0, securityDeposit: 0, otherFees: [] },
                 isDefault: false
             });
         } catch (err) {
@@ -433,6 +434,16 @@ const FeeManagement = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
+                                    <label className="text-sm font-medium text-foreground">Annual Expenses</label>
+                                    <input
+                                        type="number"
+                                        name="annualExpenses"
+                                        className="w-full px-3 py-2 bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary/20"
+                                        value={formData.amounts.annualExpenses}
+                                        onChange={handleAmountChange}
+                                    />
+                                </div>
+                                <div className="space-y-2">
                                     <label className="text-sm font-medium text-foreground">Security Deposit (Refundable)</label>
                                     <input
                                         type="number"
@@ -492,7 +503,7 @@ const FeeManagement = () => {
                                                 Rs. {fs.amounts.tuitionFee.toLocaleString()}
                                             </td>
                                             <td className="px-6 py-4 text-sm">
-                                                Rs. {(fs.amounts.tuitionFee + fs.amounts.admissionFee + fs.amounts.securityDeposit).toLocaleString()}
+                                                Rs. {(fs.amounts.tuitionFee + fs.amounts.admissionFee + (fs.amounts.annualExpenses || 0) + fs.amounts.securityDeposit).toLocaleString()}
                                             </td>
                                             <td className="px-6 py-4 text-center">
                                                 <button

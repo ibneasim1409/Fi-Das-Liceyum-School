@@ -100,6 +100,12 @@ const ChallanPrintView = () => {
                                     <td className="px-2 py-0.5 text-right">Rs. {challan.fees.admissionFee.toLocaleString()}</td>
                                 </tr>
                             )}
+                            {challan.fees.annualExpenses > 0 && (
+                                <tr>
+                                    <td className="px-2 py-0.5">Annual Expenses</td>
+                                    <td className="px-2 py-0.5 text-right">Rs. {challan.fees.annualExpenses.toLocaleString()}</td>
+                                </tr>
+                            )}
                             {challan.fees.securityDeposit > 0 && (
                                 <tr>
                                     <td className="px-2 py-0.5">Security Deposit</td>

@@ -33,6 +33,7 @@ const challanSchema = new mongoose.Schema({
     fees: {
         tuitionFee: { type: Number, default: 0 },
         admissionFee: { type: Number, default: 0 },
+        annualExpenses: { type: Number, default: 0 },
         securityDeposit: { type: Number, default: 0 },
         discount: { type: Number, default: 0 },
         otherFees: [{
@@ -68,13 +69,14 @@ const challanSchema = new mongoose.Schema({
 challanSchema.pre('save', async function () {
     const tuition = this.fees.tuitionFee || 0;
     const admission = this.fees.admissionFee || 0;
+    const annual = this.fees.annualExpenses || 0;
     const security = this.fees.securityDeposit || 0;
     const discount = this.fees.discount || 0;
 
     // Safely reduce other fees, ensuring each amount is a number
     const other = this.fees.otherFees?.reduce((acc, f) => acc + (Number(f.amount) || 0), 0) || 0;
 
-    this.totalAmount = tuition + admission + security + other - discount;
+    this.totalAmount = tuition + admission + annual + security + other - discount;
 });
 
 module.exports = mongoose.model('Challan', challanSchema);

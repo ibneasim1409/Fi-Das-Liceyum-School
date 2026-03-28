@@ -65,6 +65,7 @@ const admissionSchema = new mongoose.Schema({
         structureName: String,
         tuitionFee: Number,
         admissionFee: Number,
+        annualExpenses: Number,
         securityDeposit: Number,
         otherFees: [{
             label: String,

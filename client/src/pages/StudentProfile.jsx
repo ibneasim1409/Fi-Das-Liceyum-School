@@ -94,11 +94,11 @@ export default function StudentProfile() {
             {/* Header & Navigation */}
             <div className="flex items-center justify-between">
                 <button
-                    onClick={() => navigate('/admissions')}
+                    onClick={() => navigate(-1)}
                     className="flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-colors"
                 >
                     <ArrowLeft className="w-5 h-5" />
-                    <span className="font-medium">Back to List</span>
+                    <span className="font-medium">Go Back</span>
                 </button>
             </div>
 
@@ -296,6 +296,10 @@ export default function StudentProfile() {
                                     <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 border-dashed">
                                         <span className="text-gray-600 text-sm">Admission Fee (One-time)</span>
                                         <span className="font-medium text-gray-900">Rs {student.feeSnapshot?.admissionFee?.toLocaleString() || 0}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 border-dashed">
+                                        <span className="text-gray-600 text-sm">Annual Expenses</span>
+                                        <span className="font-medium text-gray-900">Rs {student.feeSnapshot?.annualExpenses?.toLocaleString() || 0}</span>
                                     </div>
                                     <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 border-dashed">
                                         <span className="text-gray-600 text-sm">Security Deposit (Refundable)</span>

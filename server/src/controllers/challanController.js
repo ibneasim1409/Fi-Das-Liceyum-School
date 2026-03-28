@@ -62,6 +62,7 @@ exports.getAdmissionChallan = async (req, res) => {
                     fees: {
                         tuitionFee: admission.feeSnapshot?.tuitionFee || 0,
                         admissionFee: admission.feeSnapshot?.admissionFee || 0,
+                        annualExpenses: admission.feeSnapshot?.annualExpenses || 0,
                         securityDeposit: admission.feeSnapshot?.securityDeposit || 0,
                         discount: (admission.feeSnapshot?.tuitionFee || 0) * ((admission.siblingDiscountPercentage || 0) / 100),
                         otherFees: admission.feeSnapshot?.otherFees || []
@@ -138,6 +139,7 @@ exports.generateMonthlyChallans = async (req, res) => {
 
         let generatedCount = 0;
         let skippedCount = 0;
+        let annualExpensesBilledCount = 0;
 
         for (const student of students) {
             // 2. Check if ANY non-void challan (monthly or admission) already exists for this student and month
@@ -152,7 +154,15 @@ exports.generateMonthlyChallans = async (req, res) => {
                 continue;
             }
 
-            // 3. Generate Challan
+            // 3. Anniversary Check
+            const admissionMonth = new Date(student.admittedAt || student.createdAt).getMonth();
+            const currentGenMonthIndex = new Date(month).getMonth();
+            const isAnniversary = (admissionMonth === currentGenMonthIndex);
+
+            const annualBilled = isAnniversary ? (student.feeSnapshot?.annualExpenses || 0) : 0;
+            if (annualBilled > 0) annualExpensesBilledCount++;
+
+            // 4. Generate Challan
             const challanCount = await Challan.countDocuments();
             const challanNumber = `CHL-M-${new Date().getFullYear()}-${(challanCount + 1).toString().padStart(5, '0')}`;
 
@@ -167,8 +177,9 @@ exports.generateMonthlyChallans = async (req, res) => {
                 dueDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // Default 10 days
                 fees: {
                     tuitionFee: student.feeSnapshot?.tuitionFee || 0,
+                    annualExpenses: annualBilled,
                     discount: (student.feeSnapshot?.tuitionFee || 0) * ((student.siblingDiscountPercentage || 0) / 100),
-                    otherFees: [] // Monthly usually just tuition
+                    otherFees: [] // Monthly usually just tuition + optional annual
                 }
             });
 
@@ -192,7 +203,8 @@ exports.generateMonthlyChallans = async (req, res) => {
         res.status(200).json({
             message: 'Monthly generation complete',
             generatedCount,
-            skippedCount
+            skippedCount,
+            annualExpensesBilledCount
         });
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err.message });
